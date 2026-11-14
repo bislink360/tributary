@@ -15,7 +15,7 @@ Embeddable Java 21 library that federates MCP servers of mixed protocol versions
 | `architect` | Decides architecture-level questions with the minimal sound solution; consulted by the coder |
 | `release` | Cuts `release/X.Y` branches, picks the SemVer bump, verifies gates, prepares tags and release notes |
 
-The main session orchestrates with the `deliver-feature` skill (`/deliver-feature <task id>`): coder → tester → (fix loop) → squash-merge to `main` → roadmap check-off with evidence → release on request. Shared skills: `java-standards`, `quality-gates`, `mcp-protocol`.
+The main session orchestrates with the `deliver-feature` skill (`/deliver-feature <task id>`, or no argument to work through the roadmap): coder → tester → (fix loop) → squash-merge to `main` → roadmap check-off with evidence → release on request. The implement–verify–merge loop runs in the delivery harness (`tools/harness/deliver.mjs`), which drives the agents headless in their own git worktree and merges only on a QA PASS for the exact PR head with green CI. Shared skills: `java-standards`, `quality-gates`, `mcp-protocol`.
 
 Guardrails: `.claude/hooks/guard.mjs` runs before every Bash, Edit and Write call (project `settings.json` for everyone, plus role rules in the coder and tester frontmatter). It blocks commits and pushes to `main`, force pushes, `--no-verify`, `NOSONAR` and Sonar exclusions; the coder cannot merge, tag or commit to `release/*`; the tester cannot change history or write outside `target/` and `docs/validation/`. The GitHub ruleset is the real enforcement; the hook catches mistakes locally.
 
@@ -34,4 +34,7 @@ Guardrails: `.claude/hooks/guard.mjs` runs before every Bash, Edit and Write cal
 ./mvnw -B clean verify                       # build and test (mvn until the wrapper exists)
 node tools/sonar/sonar.mjs gate              # start local SonarQube (Docker) if needed, build, analyze, check zero issues
 node tools/sonar/sonar.mjs down              # stop it when done (data kept)
+node tools/harness/deliver.mjs <task-id>     # coder → tester → merge for one roadmap task, unattended
+node tools/harness/deliver.mjs smoke         # check the harness setup with one cheap real agent run
+node tools/harness/test/run-tests.mjs        # harness routing tests (stubbed agents and GitHub)
 ```

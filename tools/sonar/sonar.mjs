@@ -11,11 +11,13 @@
 //   reset    stop the server and delete its data and stored credentials
 //
 // Exit codes: 0 pass, 1 gate failed, 2 could not evaluate.
-// Credentials are generated here and kept in tools/sonar/.state/ (git-ignored); they are never printed.
+// Credentials are generated here and kept in ~/.tributary/sonar/, outside every checkout and worktree,
+// so all worktrees share one server; they are never printed.
 
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,8 +32,9 @@ const STARTUP_TIMEOUT_MS = 5 * 60 * 1000;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
 const composeFile = path.join(here, 'compose.yaml');
-const stateDir = path.join(here, '.state');
+const stateDir = path.join(os.homedir(), '.tributary', 'sonar');
 const stateFile = path.join(stateDir, 'credentials.json');
+const legacyStateFile = path.join(here, '.state', 'credentials.json');
 const checkScript = path.join(repoRoot, '.claude', 'skills', 'quality-gates', 'scripts', 'check-sonar.mjs');
 const isWindows = process.platform === 'win32';
 
@@ -48,6 +51,11 @@ function compose(...args) {
 }
 
 function readState() {
+  if (!existsSync(stateFile) && existsSync(legacyStateFile)) {
+    mkdirSync(stateDir, { recursive: true });
+    renameSync(legacyStateFile, stateFile);
+    rmSync(path.dirname(legacyStateFile), { recursive: true, force: true });
+  }
   return existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : {};
 }
 

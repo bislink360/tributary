@@ -47,7 +47,7 @@
       "WebFetch(domain:docs.sonarsource.com)"
     ],
     "deny": [
-      "Read(./tools/sonar/.state/**)",
+      "Read(~/.tributary/**)",
       "Bash(git push --force *)",
       "Bash(git push -f *)",
       "Bash(git reset --hard*)",

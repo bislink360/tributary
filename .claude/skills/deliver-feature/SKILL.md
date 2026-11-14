@@ -51,6 +51,27 @@ When you stop, run `node tools/sonar/sonar.mjs down` to free the local SonarQube
 - Check its dependencies and the open questions that gate it. If a gating question is open, tell the user and stop.
 - If `.github/workflows/ci.yml` is missing, the CI bootstrap goes first; tell the user before starting the requested task.
 
+## Steps 2–4 through the harness (default)
+
+For a code task, run the implement → verify → merge loop with the delivery harness instead of spawning the agents yourself. It runs the coder and tester headless in their own git worktree (your checkout is never touched), routes FAIL reports back to the coder with sessions resumed, re-tests when the PR head moves, and merges only when QA passed on the exact head and every CI check is green. It also does the roadmap check-off from step 4.
+
+```bash
+node tools/harness/deliver.mjs <task-id>        # run in the background; it can take a long time
+```
+
+Options: `--max-rounds <n>` (default 3), `--budget-usd <n>` per agent run, `--no-merge` (stop at PASS), `--allow-no-checks` (only for the PR that sets up CI), `--base <ref>`. Its log names each step, and `<repo>-worktrees/.runs/<task-id>/` keeps every agent's raw output.
+
+Act on its exit code:
+
+| Exit | Meaning | What you do |
+| --- | --- | --- |
+| 0 | Merged (or passed with `--no-merge`) | Report the PR; in continuous mode, pick the next task |
+| 3 | Needs a person (coder blocked, tester could not evaluate, no CI, PR closed) | Show the reason and any "needs your approval" lines; stop |
+| 4 | QA did not converge | Show the last QA report from the PR; stop |
+| 2 | Error | Show the error and the run folder; stop |
+
+Re-running the same command resumes: it finds the open PR and the stored agent sessions. Use the manual steps 2–4 below only when the user wants to watch each handoff in this conversation, or when the harness cannot run.
+
 ## 2. Implement
 
 Spawn `coder` with the task id, the user's request in their words, and anything already decided in this conversation. The coder may consult `architect` on its own.

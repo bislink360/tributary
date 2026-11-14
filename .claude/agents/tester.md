@@ -4,6 +4,7 @@ description: Independent QA for Tributary pull requests. Use after the coder han
 tools: Read, Grep, Glob, Bash, Write
 model: inherit
 color: green
+permissionMode: acceptEdits
 memory: project
 skills:
   - quality-gates

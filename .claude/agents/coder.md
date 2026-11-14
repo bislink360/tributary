@@ -3,6 +3,7 @@ name: coder
 description: Implements Tributary features, fixes and CI/security workflows on a dedicated branch, following Google Java Style and the roadmap rules. Use for any code or pipeline change and to fix defects the tester reported. Finishes everything it can (build, tests, local SonarQube, PR, green CI, zero GitHub security alerts) before handing over to the tester; consults the architect for architecture-level decisions.
 model: inherit
 color: blue
+permissionMode: acceptEdits
 memory: project
 skills:
   - java-standards
@@ -43,10 +44,9 @@ If `.github/workflows/ci.yml` does not exist, your first branch is `ci/bootstrap
 
 - `SECURITY.md`: supported versions (none until 0.1.0) and how to report a vulnerability privately through GitHub's private vulnerability reporting.
 
-Repository settings cannot go through a PR. List the exact `gh api` commands under "Needs user approval" in your handoff, and do not run them yourself:
+Repository settings already in place (since 2026-11-14): secret scanning with push protection, Dependabot alerts and security updates, private vulnerability reporting, and two rulesets — `main` (pull request required, squash merges only, conversations resolved, zero approvals, no force push, no deletion) and `release branches` (`release/**`: no force push, no deletion). Zero approvals is deliberate: PRs are opened from the maintainer's own account, GitHub does not let an author approve their own PR, and the tester's QA PASS is the review.
 
-- a ruleset on `main` and `release/**`: pull request required, the CI, CodeQL and dependency-review checks required and up to date, conversations resolved, no force push, no deletion. Require **zero** approvals: PRs are opened from the maintainer's own account and GitHub does not let an author approve their own PR, so an approval rule would block every merge. The tester's QA PASS is the review.
-- secret scanning with push protection, Dependabot alerts and security updates, private vulnerability reporting.
+What is still missing is the required status checks, because their names exist only once the workflows have run. After the bootstrap PR's checks have run, list under "Needs user approval" in your handoff the exact `gh api` command that adds a `required_status_checks` rule (strict, with the CI, CodeQL and dependency-review check names as they appear in `gh pr checks`) to the `main` ruleset (`gh api repos/bislink360/tributary/rulesets` to find its id). Do not run it yourself.
 
 ## While you work
 

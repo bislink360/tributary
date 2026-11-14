@@ -1,14 +1,49 @@
 ---
 name: deliver-feature
-description: Orchestrates the Tributary delivery flow across the coder, tester, architect and release agents — branch, implement, QA loop, merge to main, and release. Use when the user asks to implement, deliver or ship a roadmap task or feature (for example "/deliver-feature T01-3"), or to run a release.
-argument-hint: <roadmap task id | feature description | release>
+description: Orchestrates the Tributary delivery flow across the coder, tester, architect and release agents — pick the next roadmap task, branch, implement, QA loop, merge to main, and release. Use when the user asks to implement, deliver or ship a roadmap task or feature (for example "/deliver-feature T01-3"), to "work through the roadmap" or "pick up the next task" (no argument), or to run a release.
+argument-hint: "[roadmap task id | release]  (empty: work through the next unblocked tasks)"
 ---
 
 # Deliver a feature
 
 You are the orchestrator in the main session. The agents do the work; you route their handoffs, keep the user informed, and own the decisions that are the user's. Each agent's definition in `.claude/agents/` holds its full procedure — don't repeat it in prompts, pass the context it needs.
 
-Task: $ARGUMENTS
+Arguments: $ARGUMENTS
+
+- A task id: deliver that one task, then stop.
+- `release`: go to step 5.
+- Empty: run in **continuous mode** — pick the next task (step 0), deliver it, and repeat until a stop condition.
+
+## 0. Pick the next task (continuous mode)
+
+```bash
+node .claude/skills/semantic-markdown-reader/scripts/smd.cjs tasks docs/roadmap.smd --order deps --json
+```
+
+From that list, the next task is the first one that passes every check, in this order:
+
+1. **Not blocked.** Its `blocked` list is empty. An open question in `depends` (Q1…Q11) blocks it until the user answers.
+2. **Current phase.** The roadmap's sections are its phase order, and the tool does not encode it. Take tasks only from the earliest section that still has open tasks, skipping the "Milestones" and "Definition of done" sections, whose items are outcomes rather than work. A later phase starts only once the previous phase's gate has evidence in `docs/validation/` and the user has confirmed it. All 0.1 work also waits for Q1 = GO.
+3. **Not already in flight.** No open PR or remote branch carries its id: `gh pr list --state open --search "<id>"` and `git ls-remote --heads origin "*<id>*"`. If one exists, resume that work (go to step 3 if the PR is ready for QA, otherwise step 2 with the existing branch) instead of starting fresh.
+4. **Agent-deliverable.** Classify the task by what it produces:
+   - **Code or tests** → steps 1–4.
+   - **Research or a written record** with no code (such as "re-read the release notes and record…") → spawn `architect` to research and write the record under `docs/validation/<id>.md`, show it to the user, and check the task off only after the user accepts it.
+   - **A decision, an ADR freeze, or publishing** ("Decide…", "Record the … choice as a decision", "Freeze…", "Publish…") → spawn `architect` for a recommendation, present it, and stop: the user decides.
+
+Before the first task of a run, check the local working tree. If it holds uncommitted work that touches the task's area (for example, files the task would create), stop and ask the user how to handle it rather than building a second version beside it.
+
+### Stop conditions
+
+Stop the loop and report to the user when any of these holds:
+
+- the next task needs a user decision, answer or approval (including the "Needs user approval" items of a handoff);
+- the current phase has no open agent-deliverable task left, so its gate is ready for the user's review;
+- every remaining task is blocked;
+- a gate cannot be evaluated (for example `SONAR_TOKEN` is unset, or a GitHub security feature is disabled);
+- three FAIL rounds on one PR;
+- the user asked for a fixed number of tasks and that many are done.
+
+When you stop, say what was delivered in this run (task ids with PR links), why you stopped, and exactly what the user needs to do to unblock the next task.
 
 ## 1. Frame the task
 

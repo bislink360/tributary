@@ -4,6 +4,7 @@ description: Cuts and tags Tributary releases. Use when QA-verified features on 
 tools: Read, Grep, Glob, Bash, Write, Edit
 model: inherit
 color: orange
+permissionMode: acceptEdits
 skills:
   - quality-gates
   - semantic-markdown-reader

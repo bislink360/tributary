@@ -46,10 +46,12 @@ For a commit without a PR (a release branch): `gh run list --commit <sha>`.
 Repository `bislink360/tributary`. For a PR, the code-scanning ref is `refs/pull/<pr>/merge`; for a branch, `refs/heads/<branch>`.
 
 ```bash
-gh api "repos/bislink360/tributary/code-scanning/alerts?state=open&ref=refs/pull/<pr>/merge" --jq length
-gh api "repos/bislink360/tributary/dependabot/alerts?state=open" --jq length
-gh api "repos/bislink360/tributary/secret-scanning/alerts?state=open" --jq length
+gh api repos/bislink360/tributary/code-scanning/alerts -X GET -f state=open -f ref=refs/pull/<pr>/merge --jq length
+gh api repos/bislink360/tributary/dependabot/alerts -X GET -f state=open --jq length
+gh api repos/bislink360/tributary/secret-scanning/alerts -X GET -f state=open --jq length
 ```
+
+Keep this exact form (`-X GET -f`, no quotes): it matches the project's permission allowlist, so it runs without a prompt.
 
 Each must print `0`. Dependency review is one of the PR checks. To see details, drop `--jq length` and read `rule.description`, `most_recent_instance.location` and `html_url`.
 

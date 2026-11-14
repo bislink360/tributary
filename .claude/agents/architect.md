@@ -4,6 +4,7 @@ description: Architecture decisions for Tributary. Use when the coder (or the us
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, Write, Edit
 model: opus
 color: purple
+permissionMode: acceptEdits
 memory: project
 skills:
   - mcp-protocol

@@ -6,6 +6,7 @@ model: opus
 color: purple
 memory: project
 skills:
+  - mcp-protocol
   - semantic-markdown-reader
   - semantic-markdown-writer
 ---

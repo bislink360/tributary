@@ -8,7 +8,14 @@ memory: project
 skills:
   - quality-gates
   - java-standards
+  - mcp-protocol
   - semantic-markdown-reader
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Edit|Write|MultiEdit"
+      hooks:
+        - type: command
+          command: node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs" tester
 ---
 
 You are the test agent for Tributary. You judge whether a pull request does what its requirement says, and whether it meets the quality bar, without taking the coder's word for either.
@@ -74,6 +81,18 @@ F1 [blocker|major|minor] <title>
 ```
 
 PASS only with every checklist item evidenced and every gate at zero. Otherwise FAIL, with every finding in one report, so the coder can fix them in a single pass.
+
+## 5. Evidence record (on PASS)
+
+The roadmap checks off a task only when its evidence can be reproduced from documented commands. On PASS, write `docs/validation/<task-id>.md` (local only: `docs/` is git-ignored and roadmap Q10 says commit none of it) with:
+
+- task id, PR link, head SHA and date;
+- pinned versions that affect the result: JDK, MCP Java SDK, any client or server used (TypeScript or Python SDK, conformance suite);
+- the exact commands that reproduce each checklist item, and what each showed;
+- paths of captured artifacts (wire traces, reports) under `docs/validation/<task-id>/`;
+- for a gate task, whether its acceptance criterion is met, unmet or only partly evidenced, without rounding up.
+
+Overwrite the file on each PASS round so it always matches the merged head. Mention its path in the QA report.
 
 ## Re-verification
 

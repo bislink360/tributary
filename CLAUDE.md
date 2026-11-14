@@ -15,7 +15,9 @@ Embeddable Java 21 library that federates MCP servers of mixed protocol versions
 | `architect` | Decides architecture-level questions with the minimal sound solution; consulted by the coder |
 | `release` | Cuts `release/X.Y` branches, picks the SemVer bump, verifies gates, prepares tags and release notes |
 
-The main session orchestrates with the `deliver-feature` skill (`/deliver-feature <task id>`): coder → tester → (fix loop) → squash-merge to `main` → release on request. Shared skills: `java-standards`, `quality-gates`.
+The main session orchestrates with the `deliver-feature` skill (`/deliver-feature <task id>`): coder → tester → (fix loop) → squash-merge to `main` → roadmap check-off with evidence → release on request. Shared skills: `java-standards`, `quality-gates`, `mcp-protocol`.
+
+Guardrails: `.claude/hooks/guard.mjs` runs before every Bash, Edit and Write call (project `settings.json` for everyone, plus role rules in the coder and tester frontmatter). It blocks commits and pushes to `main`, force pushes, `--no-verify`, `NOSONAR` and Sonar exclusions; the coder cannot merge, tag or commit to `release/*`; the tester cannot change history or write outside `target/` and `docs/validation/`. The GitHub ruleset is the real enforcement; the hook catches mistakes locally.
 
 ## Rules for every session
 

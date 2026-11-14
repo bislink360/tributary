@@ -41,6 +41,15 @@ gh pr merge <pr> --squash --delete-branch
 
 Use a squash commit whose subject is the PR's Conventional Commit title, keeping `!` and the `BREAKING CHANGE:` footer when present. Then tell the user what merged.
 
+Then record progress in the roadmap (local file, `docs/` is git-ignored):
+
+1. Check that `docs/validation/<task-id>.md` exists and lists reproduction commands. If it doesn't, leave the task open and say why.
+2. Change the task's `- [ ]` to `- [x]` in `docs/roadmap.smd`, touching nothing else on the line.
+3. `node .claude/skills/semantic-markdown-reader/scripts/smd.cjs review comment docs/roadmap.smd <task-id> --by @claude --title "Done" --text "Merged in <PR url> (<sha>). Evidence: docs/validation/<task-id>.md"`
+4. `node .claude/skills/semantic-markdown-reader/scripts/smd.cjs validate docs/roadmap.smd`
+
+Never set a requirement to implemented or verified and never answer a question: the user does both.
+
 ## 5. Release (only when asked)
 
 When the user asks to release, or several merged tasks complete a roadmap release, spawn `release`. Relay its `READY FOR APPROVAL` summary to the user verbatim, and only when the user approves that version in this conversation, resume the release agent to push the tag and create the draft GitHub release. Publishing the draft and any Maven Central deployment stay with the user.

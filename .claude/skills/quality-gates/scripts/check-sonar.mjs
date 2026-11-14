@@ -51,7 +51,13 @@ async function main() {
   await waitForAnalysis();
 
   const issues = await api(`issues/search?components=${projectKey}&resolved=false&ps=500`);
-  const accepted = await api(`issues/search?components=${projectKey}&issueStatuses=FALSE_POSITIVE,ACCEPTED&ps=500`);
+  // One query per status: multi-value status filters have silently returned no results on Community Edition.
+  const marked = await Promise.all(
+    ['FALSE_POSITIVE', 'ACCEPTED'].map((status) =>
+      api(`issues/search?components=${projectKey}&issueStatuses=${status}&ps=500`),
+    ),
+  );
+  const accepted = { issues: marked.flatMap((result) => result.issues) };
   const hotspots = await api(`hotspots/search?projectKey=${projectKey}&status=TO_REVIEW&ps=500`);
   const { component } = await api(
     `measures/component?component=${projectKey}&metricKeys=duplicated_lines,duplicated_blocks,coverage`,

@@ -39,11 +39,11 @@ Stop the loop and report to the user when any of these holds:
 - the next task needs a user decision, answer or approval (including the "Needs user approval" items of a handoff);
 - the current phase has no open agent-deliverable task left, so its gate is ready for the user's review;
 - every remaining task is blocked;
-- a gate cannot be evaluated (for example `SONAR_TOKEN` is unset, or a GitHub security feature is disabled);
+- a gate cannot be evaluated (for example `node tools/sonar/sonar.mjs gate` exits 2 because Docker is not running, or a GitHub security feature is disabled);
 - three FAIL rounds on one PR;
 - the user asked for a fixed number of tasks and that many are done.
 
-When you stop, say what was delivered in this run (task ids with PR links), why you stopped, and exactly what the user needs to do to unblock the next task.
+When you stop, run `node tools/sonar/sonar.mjs down` to free the local SonarQube, then say what was delivered in this run (task ids with PR links), why you stopped, and exactly what the user needs to do to unblock the next task.
 
 ## 1. Frame the task
 

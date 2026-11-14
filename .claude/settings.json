@@ -3,6 +3,7 @@
     "allow": [
       "Bash(./mvnw *)",
       "Bash(mvn *)",
+      "Bash(node tools/sonar/sonar.mjs *)",
       "Bash(node .claude/skills/quality-gates/scripts/check-sonar.mjs*)",
       "Bash(node .claude/skills/semantic-markdown-reader/scripts/smd.cjs *)",
       "Bash(node .claude/skills/semantic-markdown-writer/scripts/smd.cjs *)",
@@ -46,6 +47,7 @@
       "WebFetch(domain:docs.sonarsource.com)"
     ],
     "deny": [
+      "Read(./tools/sonar/.state/**)",
       "Bash(git push --force *)",
       "Bash(git push -f *)",
       "Bash(git reset --hard*)",

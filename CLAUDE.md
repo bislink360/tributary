@@ -32,5 +32,6 @@ Guardrails: `.claude/hooks/guard.mjs` runs before every Bash, Edit and Write cal
 
 ```bash
 ./mvnw -B clean verify                       # build and test (mvn until the wrapper exists)
-node .claude/skills/quality-gates/scripts/check-sonar.mjs tributary   # after a Sonar scan; needs SONAR_TOKEN
+node tools/sonar/sonar.mjs gate              # start local SonarQube (Docker) if needed, build, analyze, check zero issues
+node tools/sonar/sonar.mjs down              # stop it when done (data kept)
 ```

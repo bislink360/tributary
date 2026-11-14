@@ -16,17 +16,21 @@ Every gate is pass or fail on evidence from the current commit. Use `./mvnw` onc
 
 ## SonarQube (local)
 
-Server: `http://127.0.0.1:9000`, project key `tributary`. The token comes from the `SONAR_TOKEN` environment variable; never write a token into a file, command line or comment. If `SONAR_TOKEN` is unset, stop and ask for it to be set — do not skip the gate.
-
-The server is Community Edition, which keeps one branch per project: each analysis replaces the previous one. That is intended — the gate judges the commit you just analyzed, on its overall code, not only new code.
+The project runs its own SonarQube in Docker (`tools/sonar/compose.yaml`, `http://127.0.0.1:9001`, project key `tributary`). One command starts it when needed, provisions it, builds, analyzes and checks:
 
 ```bash
-./mvnw -B clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-  -Dsonar.host.url=http://127.0.0.1:9000 -Dsonar.projectKey=tributary
-node .claude/skills/quality-gates/scripts/check-sonar.mjs tributary
+node tools/sonar/sonar.mjs gate      # exit 0 pass, 1 gate failed, 2 could not evaluate
 ```
 
-The script waits for the server to finish processing the analysis, then prints the counts and every open issue and hotspot with file and line, and exits non-zero if any count is above zero. It also lists issues marked false positive or accepted: each needs a justification cited in the PR, or it is a finding.
+Other commands: `up` (start and provision only), `scan`, `check` (re-evaluate the last analysis), `status`, `down` (stop, keep data), `reset` (delete data and credentials, then the next `up` provisions from scratch).
+
+- The first `up` takes about a minute. The script generates the admin password and an analysis token itself and keeps them in `tools/sonar/.state/` (git-ignored). Never read, print or copy that file; the script passes the token to Maven and the check through the environment.
+- Java is analyzed with the built-in **Sonar way comprehensive** profile, assigned on every `up`. The server's default profile misses basics (empty catch blocks, `System.out`, unused fields, commented-out code), so it would let code smells through.
+- Exit 2 means the gate could not run (Docker not running, the build failed, the server did not start). Report it; never treat it as a pass. If the script says the server holds credentials it does not have, run `reset`.
+- The server is Community Edition, which keeps one branch per project: each analysis replaces the previous one. That is intended — the gate judges the commit you just analyzed, on its overall code, not only new code.
+- Leave the server running between agents in one delivery run; the orchestrator stops it with `down` when the run ends.
+
+The check prints the counts and every open issue and hotspot with file and line. It also lists issues marked false positive or accepted: each needs a justification cited in the PR, or it is a finding.
 
 Fix the code; never pass the gate by suppression, exclusion, resolving issues in the UI, or changing the quality profile or gate.
 

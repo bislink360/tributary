@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Usage: node check-sonar.mjs [projectKey]
-// Env: SONAR_TOKEN (required), SONAR_HOST_URL (default http://127.0.0.1:9000)
+// Env: SONAR_TOKEN (required), SONAR_HOST_URL (default http://127.0.0.1:9001)
 // Exit codes: 0 all gates zero, 1 gate failed, 2 could not evaluate.
 
 import { existsSync, readFileSync } from 'node:fs';
 
 const projectKey = process.argv[2] ?? 'tributary';
-const host = (process.env.SONAR_HOST_URL ?? 'http://127.0.0.1:9000').replace(/\/$/, '');
+const host = (process.env.SONAR_HOST_URL ?? 'http://127.0.0.1:9001').replace(/\/$/, '');
 const token = process.env.SONAR_TOKEN;
 const reportTask = 'target/sonar/report-task.txt';
 
@@ -58,7 +58,7 @@ async function main() {
     ),
   );
   const accepted = { issues: marked.flatMap((result) => result.issues) };
-  const hotspots = await api(`hotspots/search?projectKey=${projectKey}&status=TO_REVIEW&ps=500`);
+  const hotspots = await api(`hotspots/search?project=${projectKey}&status=TO_REVIEW&ps=500`);
   const { component } = await api(
     `measures/component?component=${projectKey}&metricKeys=duplicated_lines,duplicated_blocks,coverage`,
   );

@@ -53,3 +53,5 @@ desktop.ini
 
 # Documents / References
 docs
+# Local SonarQube credentials (tools/sonar/sonar.mjs)
+tools/sonar/.state/

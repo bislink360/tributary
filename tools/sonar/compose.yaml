@@ -1,0 +1,21 @@
+# Local SonarQube for Tributary's zero-issue gate. Managed by tools/sonar/sonar.mjs; don't start it by hand.
+# Embedded H2 database: fine for a single-user local gate, not for a shared server.
+name: tributary-sonar
+
+services:
+  sonarqube:
+    image: sonarqube:26.10.0.133078-community
+    ports:
+      - "127.0.0.1:9001:9000"
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+      SONAR_TELEMETRY_ENABLE: "false"
+    volumes:
+      - data:/opt/sonarqube/data
+      - extensions:/opt/sonarqube/extensions
+      - logs:/opt/sonarqube/logs
+
+volumes:
+  data:
+  extensions:
+  logs:

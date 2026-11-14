@@ -28,7 +28,7 @@ The code should explain itself to a reader who has not seen it before.
 - Prefer plain control flow over clever constructs: no nested ternaries, no long stream chains with side effects, no reflection or annotation magic where a direct call works.
 - No speculative generality: no interface with one implementation unless it is a seam the design names (transport, clock, storage), no configuration options nobody asked for, no "future use" parameters.
 - Immutable by default: `record` for values, `final` fields, `List.copyOf` at boundaries. Model closed sets of states with `sealed` interfaces and exhaustive `switch`.
-- No dead code, commented-out code or TODOs without a roadmap task id.
+- No dead code, commented-out code or `TODO`/`FIXME` comments (the Sonar profile flags every one). Unfinished work becomes a roadmap task instead.
 
 ## Comments
 

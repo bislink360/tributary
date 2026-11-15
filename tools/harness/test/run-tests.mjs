@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Routing tests for the delivery harness. Agents and GitHub are stubbed; git worktrees are real but live in
-// a temporary folder. Usage: node tools/harness/test/run-tests.mjs
+// a temporary folder, docs/ is a throwaway roadmap and pushes go to a local bare repository.
+// Usage: node tools/harness/test/run-tests.mjs
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -86,6 +87,24 @@ const cases = [
     check: (calls) => expect(calls.some((c) => c.tool === 'gh' && c.args[1] === 'merge'), false),
   },
   {
+    name: 'QA pass marks the feature record delivered in one commit on top, and the merge pins that commit',
+    scenario: { coder: [coder('@head', { __record: true })], tester: [tester('PASS', '@head')], gh: { pr_view: [pr('@pushed')] } },
+    exit: 0,
+    check: (calls, { remote, task }) => {
+      const remoteGit = (...args) => spawnSync('git', ['-C', remote, ...args], { encoding: 'utf8' }).stdout.trim();
+      const pushed = remoteGit('rev-parse', 'refs/heads/feat/T-X-1-demo');
+      const tested = remoteGit('rev-parse', `${pushed}^`);
+      expect(calls.find((c) => c.tool === 'gh' && c.args[1] === 'merge').args.join(' '), `pr merge 7 --squash --match-head-commit ${pushed}`);
+      expect(remoteGit('log', '-1', '--format=%s', tested), `feat(${task}): demo`);
+      const changed = remoteGit('diff', '--name-only', tested, pushed).split(/\r?\n/);
+      expect(changed.every((file) => file.startsWith('delivery/')), true);
+      const record = remoteGit('show', `${pushed}:delivery/features/${task}.smd`);
+      expect(/^status: approved$/m.test(record) && record.includes('pull request #7'), true);
+      expect(remoteGit('show', `${pushed}:delivery/features/${task}.md`).includes('**Status:** Delivered'), true);
+      expect(remoteGit('show', `${pushed}:delivery/README.md`).includes('| Delivered |'), true);
+    },
+  },
+  {
     name: 'tester ERROR: stops for a person',
     scenario: { coder: [coder('a1')], tester: [{ ...tester('ERROR', 'a1'), error: 'Docker is not running' }], gh: {} },
     exit: 3,
@@ -106,11 +125,32 @@ function expect(actual, expected) {
 }
 
 let failed = 0;
+const realRoadmap = path.join(repoRoot, 'docs', 'roadmap.smd');
+const realRoadmapBefore = existsSync(realRoadmap) ? readFileSync(realRoadmap, 'utf8') : null;
+
 for (const [index, testCase] of cases.entries()) {
+  const task = `T-HARNESS-TEST-${index}`;
   const stubDir = mkdtempSync(path.join(os.tmpdir(), 'harness-stub-'));
   const worktrees = mkdtempSync(path.join(os.tmpdir(), 'harness-wt-'));
+  const docs = mkdtempSync(path.join(os.tmpdir(), 'harness-docs-'));
+  const remote = mkdtempSync(path.join(os.tmpdir(), 'harness-remote-'));
+  spawnSync('git', ['init', '--bare', '--quiet', remote]);
+  mkdirSync(path.join(docs, 'validation'));
+  writeFileSync(path.join(docs, 'roadmap.smd'), `---
+smd: 2
+title: Test roadmap
+summary: Throwaway roadmap for harness tests.
+status: draft
+owners: ["@tester"]
+updated: 2026-11-14
+---
+
+## Phase
+
+- [ ] Demo task :priority[P0] @roshan {#${task}}
+`);
   writeFileSync(path.join(stubDir, 'scenario.json'), JSON.stringify(testCase.scenario));
-  const result = spawnSync(process.execPath, [harness, `T-HARNESS-TEST-${index}`, '--base', 'HEAD', ...(testCase.args ?? [])], {
+  const result = spawnSync(process.execPath, [harness, task, '--base', 'HEAD', ...(testCase.args ?? [])], {
     cwd: repoRoot,
     encoding: 'utf8',
     env: {
@@ -119,6 +159,8 @@ for (const [index, testCase] of cases.entries()) {
       TRIBUTARY_HARNESS_GH: path.join(here, 'stub-gh.mjs'),
       TRIBUTARY_HARNESS_STUB_DIR: stubDir,
       TRIBUTARY_HARNESS_WORKTREES: worktrees,
+      TRIBUTARY_HARNESS_DOCS: docs,
+      TRIBUTARY_HARNESS_REMOTE: remote,
     },
   });
   const calls = existsSync(path.join(stubDir, 'calls.jsonl'))
@@ -126,8 +168,9 @@ for (const [index, testCase] of cases.entries()) {
     : [];
   try {
     expect(result.status, testCase.exit);
-    testCase.check(calls);
-    if (!existsSync(path.join(repoRoot, 'docs', 'roadmap.smd'))) throw new Error('docs/roadmap.smd disappeared');
+    testCase.check(calls, { remote, task });
+    if (!existsSync(path.join(docs, 'roadmap.smd'))) throw new Error('the test roadmap disappeared through the docs link');
+    if (realRoadmapBefore !== null && readFileSync(realRoadmap, 'utf8') !== realRoadmapBefore) throw new Error('the real docs/roadmap.smd changed');
     console.log(`PASS  ${testCase.name}`);
   } catch (error) {
     failed += 1;
@@ -140,8 +183,8 @@ for (const [index, testCase] of cases.entries()) {
     spawnSync('git', ['worktree', 'remove', '--force', path.join(worktrees, entry)], { cwd: repoRoot });
   }
   spawnSync('git', ['worktree', 'prune'], { cwd: repoRoot });
-  rmSync(stubDir, { recursive: true, force: true });
-  rmSync(worktrees, { recursive: true, force: true });
+  spawnSync('git', ['branch', '-D', 'feat/T-X-1-demo'], { cwd: repoRoot });
+  for (const dir of [stubDir, worktrees, docs, remote]) rmSync(dir, { recursive: true, force: true });
 }
 console.log(failed === 0 ? `all ${cases.length} passed` : `${failed} of ${cases.length} failed`);
 process.exit(failed === 0 ? 0 : 1);

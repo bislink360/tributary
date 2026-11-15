@@ -19,7 +19,9 @@
 //
 // Agents work in a separate git worktree (<repo>-worktrees/<task>), so the main checkout is never touched.
 // docs/ (git-ignored, the only copy of the roadmap) is linked into it, never copied, and the link is
-// removed before the worktree is.
+// removed before the worktree is. The feature record (delivery/features/<task>.smd, committed) is marked
+// delivered by a harness commit on the PR branch right after the QA pass, so it reads "Delivered" exactly
+// when the PR merges.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -29,8 +31,12 @@ import { fileURLToPath } from 'node:url';
 const EXIT = { done: 0, error: 2, needsPerson: 3, notConverging: 4 };
 const approvals = new Set();
 const CHECK_WAIT_MS = 60 * 60 * 1000;
+const REMOTE = process.env.TRIBUTARY_HARNESS_REMOTE ?? 'origin';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+// TRIBUTARY_HARNESS_DOCS points the docs link elsewhere (the tests use a throwaway roadmap).
+const docsRoot = path.resolve(process.env.TRIBUTARY_HARNESS_DOCS ?? path.join(repoRoot, 'docs'));
+const roadmapFile = path.join(docsRoot, 'roadmap.smd');
 const worktreesRoot =
   process.env.TRIBUTARY_HARNESS_WORKTREES ?? path.join(path.dirname(repoRoot), `${path.basename(repoRoot)}-worktrees`);
 
@@ -113,10 +119,9 @@ function findOpenPr(task) {
 }
 
 function linkDocs(worktree) {
-  const target = path.join(repoRoot, 'docs');
   const link = path.join(worktree, 'docs');
-  if (!existsSync(path.join(target, 'roadmap.smd'))) throw new Stop(EXIT.error, `${target} has no roadmap.smd`);
-  if (!existsSync(link)) symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
+  if (!existsSync(roadmapFile)) throw new Stop(EXIT.error, `${docsRoot} has no roadmap.smd`);
+  if (!existsSync(link)) symlinkSync(docsRoot, link, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
 function ensureWorktree(task, branch, base) {
@@ -145,7 +150,7 @@ function removeWorktree(worktree) {
     if (!isLink(link)) throw new Stop(EXIT.error, `${link} is not a link; leaving the worktree in place`);
     unlinkSync(link);
   }
-  if (!existsSync(path.join(repoRoot, 'docs', 'roadmap.smd'))) throw new Stop(EXIT.error, 'docs/roadmap.smd is missing after unlinking');
+  if (!existsSync(roadmapFile)) throw new Stop(EXIT.error, 'docs/roadmap.smd is missing after unlinking');
   const removed = git(['worktree', 'remove', worktree], { allowFailure: true });
   log(removed.status === 0 ? `removed worktree ${worktree}` : `kept worktree ${worktree}: ${removed.stderr}`);
 }
@@ -289,19 +294,59 @@ function merge(pr, status, repo) {
 // ---------- roadmap ----------
 
 function checkOffRoadmap(task, evidenceFile, prUrl, sha) {
-  const evidence = path.join(repoRoot, evidenceFile ?? `docs/validation/${task}.md`);
-  if (!existsSync(evidence)) return log(`roadmap: ${task} left open, no evidence file at ${path.relative(repoRoot, evidence)}`);
-  const roadmap = path.join(repoRoot, 'docs', 'roadmap.smd');
+  const relative = (evidenceFile ?? `docs/validation/${task}.md`).replace(/^docs[\\/]/, '');
+  const evidence = path.join(docsRoot, relative);
+  if (!existsSync(evidence)) return log(`roadmap: ${task} left open, no evidence file at ${evidence}`);
+  const roadmap = roadmapFile;
   const text = readFileSync(roadmap, 'utf8');
   const escaped = task.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const updated = text.replace(new RegExp(`^(\\s*- )\\[ \\](.*\\{#${escaped}\\})`, 'm'), '$1[x]$2');
   if (updated === text) return log(`roadmap: no open task {#${task}} found`);
   writeFileSync(roadmap, updated);
   const smd = path.join(repoRoot, '.claude', 'skills', 'semantic-markdown-reader', 'scripts', 'smd.cjs');
-  const comment = `Merged in ${prUrl} (${sha}). Evidence: ${path.relative(repoRoot, evidence).replaceAll('\\', '/')}`;
+  const comment = `Merged in ${prUrl} (${sha}). Evidence: docs/${relative.replaceAll('\\', '/')}`;
   spawnSync(process.execPath, [smd, 'review', 'comment', roadmap, task, '--by', '@claude', '--title', 'Done', '--text', comment], { stdio: 'inherit' });
   spawnSync(process.execPath, [smd, 'validate', roadmap], { stdio: 'inherit' });
   log(`roadmap: checked off ${task}`);
+}
+
+// ---------- feature record ----------
+
+const docsScript = path.join(repoRoot, '.claude', 'skills', 'delivery-docs', 'scripts', 'docs.mjs');
+
+function docs(worktree, args) {
+  return spawnSync(process.execPath, [docsScript, ...args, '--root', path.join(worktree, 'delivery'), '--roadmap', roadmapFile], { encoding: 'utf8' });
+}
+
+const recordFile = (worktree, task) => path.join(worktree, 'delivery', 'features', `${task}.smd`);
+
+function logProgress(task, worktree) {
+  if (!existsSync(recordFile(worktree, task))) return log(`feature record: none yet at delivery/features/${task}.smd`);
+  const result = docs(worktree, ['progress', task]);
+  log(`feature record: ${(result.stdout || result.stderr).trim()}`);
+}
+
+// After a QA pass on testedSha: mark the record delivered in one commit on top of it and push it.
+// Returns the commit the merge gate should accept: the new commit, or testedSha when nothing changed.
+function markDelivered(task, worktree, branch, testedSha, prUrl) {
+  const file = recordFile(worktree, task);
+  if (!existsSync(file)) {
+    log(`feature record: none at delivery/features/${task}.smd; nothing to mark delivered`);
+    return testedSha;
+  }
+  if (/^status:s*approveds*$/m.test(readFileSync(file, 'utf8'))) return testedSha;
+  if (git(['rev-parse', 'HEAD'], { cwd: worktree }).stdout !== testedSha) {
+    log('feature record: worktree is not at the tested commit; leaving the record for the next round');
+    return testedSha;
+  }
+  const result = docs(worktree, ['finalize', task, '--pr', prUrl]);
+  if (result.status !== 0) throw new Stop(EXIT.error, `could not finalize the feature record: ${result.stderr.trim()}`);
+  git(['add', '--', 'delivery'], { cwd: worktree });
+  git(['commit', '-m', `docs(${task}): mark the feature delivered`], { cwd: worktree });
+  git(['push', REMOTE, `HEAD:refs/heads/${branch}`], { cwd: worktree });
+  const sha = git(['rev-parse', 'HEAD'], { cwd: worktree }).stdout;
+  log(`feature record: marked delivered in ${sha.slice(0, 7)}; CI runs once more on that commit`);
+  return sha;
 }
 
 // ---------- delivery loop ----------
@@ -331,6 +376,7 @@ function deliver(task, options) {
       if (!handoff.pr_number) throw new Stop(EXIT.error, 'coder handed over without a PR number');
       Object.assign(state, { pr: handoff.pr_number, branch: handoff.branch });
       saveState(state);
+      logProgress(task, worktree);
     }
 
     if (roundsThisRun >= options.maxRounds) {
@@ -350,7 +396,8 @@ function deliver(task, options) {
       continue;
     }
 
-    const gate = mergeGate(state.pr, qa.head_sha, options);
+    const accepted = options.merge ? markDelivered(task, worktree, state.branch, qa.head_sha, `https://github.com/${repo}/pull/${state.pr}`) : qa.head_sha;
+    const gate = mergeGate(state.pr, accepted, options);
     if (gate.retest) {
       log(`re-testing: ${gate.retest}`);
       coderPrompt = null;

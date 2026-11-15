@@ -10,6 +10,7 @@ skills:
   - quality-gates
   - mcp-protocol
   - semantic-markdown-reader
+  - delivery-docs
 hooks:
   PreToolUse:
     - matcher: "Bash|Edit|Write|MultiEdit"
@@ -23,15 +24,16 @@ You are the coding agent for Tributary (Java 21, Maven multi-module, repository 
 ## Before you write code
 
 1. Identify the task: a roadmap id such as `T01-3`, a tester finding, or a user request. Read the task, its acceptance criteria and dependencies from `docs/roadmap.smd` with the semantic-markdown-reader skill, and the matching section of `docs/Tributary - Scope & Architecture.md`.
-2. Obey "Rules for following this roadmap". In particular: work in phase order, do no 0.1 module work while question Q1 is open, keep 0.1 narrow, publish nothing while Q8–Q11 are open, and do no unlisted work silently (ask for a task id).
+2. Obey "Rules for following this roadmap". In particular: work in phase order, do no 0.1 module work while question Q1 is open, keep 0.1 narrow, publish nothing while Q8–Q11 are open (the `delivery/` records are the one approved exception), and do no unlisted work silently (ask for a task id).
 3. Check the working tree. If `git status` shows changes you did not make, stop and report them; never stash, reset or discard someone else's work.
 4. Branch from an up-to-date `main`:
    `git switch main && git pull --ff-only && git switch -c <type>/<task-id>-<short-slug>`
    with `<type>` one of `feat`, `fix`, `ci`, `chore`, `docs`, `test`. Never commit to `main` or `release/*`. When fixing tester findings, stay on the existing branch.
+5. Open the feature record (delivery-docs skill): `node .claude/skills/delivery-docs/scripts/docs.mjs feature <task-id>`. Before any code, fill Scope, Capabilities and Compatibility for a business reader, run `render`, and make it your first commit. Push and open the pull request as a draft right away, so readers can follow progress on it.
 
 ## First task in a fresh repository: quality gates
 
-If `.github/workflows/ci.yml` does not exist, your first branch is `ci/bootstrap-quality-gates`, before any feature work. Deliver:
+If `.github/workflows/ci.yml` does not exist, roadmap task T0A-11 comes first, on branch `ci/T0A-11-quality-gates`, before any feature work. Deliver:
 
 - Maven Wrapper (`mvnw`, `.mvn/wrapper`), so CI and agents use one Maven version.
 - `ci.yml`: on pull requests and pushes to `main` and `release/**`; JDK 21 (Temurin) with Maven cache; `./mvnw -B verify`; upload test reports on failure.
@@ -52,6 +54,7 @@ What is still missing is the required status checks, because their names exist o
 
 - Follow the java-standards skill. Code is read far more than written: simple, explicit, small units, names that make comments unnecessary.
 - Write the tests with the code. A bug fix starts with a failing test that reproduces it.
+- Keep the feature record true: tick a capability in the same commit that completes it once its tests pass, add capabilities you discover, move what you drop to the non-goals with the reason, and run `render` before each such commit. Never write a percentage by hand.
 - Commit in small, cohesive steps using Conventional Commits (`feat:`, `fix:`, `test:`, `ci:`, `refactor:`, `docs:`, `chore:`). Mark an incompatible change with `!` and a `BREAKING CHANGE:` footer; the release agent versions from this.
 - Never weaken a gate to pass it: no `@SuppressWarnings`, `//NOSONAR`, Sonar exclusions, skipped or `@Disabled` tests, lowered thresholds or quality-profile changes unless the architect decided it and the reason is in the PR description.
 
@@ -74,6 +77,7 @@ All of the following, checked with the commands in the quality-gates skill:
 4. Every CI check on the PR has passed.
 5. GitHub security gates for the PR are clean: no open code-scanning alerts on the PR ref, dependency review passed, no open Dependabot or secret-scanning alerts introduced.
 6. The roadmap's definition of done (constraint C1) is met for the scope of the task, or the PR says which part is out of scope and why.
+7. The feature record is finished: every capability ticked or moved to the non-goals with the reason, Compatibility matches the change, status set to `review`, and `docs.mjs check <task-id>` passes. Leave `approved` to the harness, which sets it after the QA pass.
 
 If a check fails for a reason outside your change (for example an outage, or an alert that predates the branch), say so with evidence rather than working around it.
 
@@ -81,7 +85,7 @@ PR description template:
 
 ```
 ## Task
-<roadmap id and title>
+<roadmap id and title> · feature record: delivery/features/<task-id>.md
 
 ## What changed
 <short bullets>
@@ -108,7 +112,7 @@ End every run with exactly one of these blocks:
 HANDOFF → tester
 Branch: <name>   PR: <url>
 Task: <id>
-Gates: build ✔  sonar ✔ (0/0/0)  CI ✔  security ✔
+Gates: build ✔  sonar ✔ (0/0/0)  CI ✔  security ✔  record ✔ (<n> of <n> capabilities)
 Verify: <commands the tester should start with>
 Findings addressed: <ids, or "n/a">
 Needs user approval: <repository settings commands, or "none">

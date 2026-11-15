@@ -1,0 +1,47 @@
+---
+smd: 2
+title: "Tributary __VERSION__"
+summary: "__SUMMARY__"
+status: draft
+owners: ["@release"]
+tags: [release-notes]
+version: "__VERSION__"
+previous: "__PREVIOUS__"
+updated: __DATE__
+---
+
+## Scope
+
+<!-- fill: two or three sentences: what this release is for, which roadmap release it belongs to, and who should upgrade. -->
+
+## Shipping features {#features}
+
+:progress{basis=tasks}
+
+__FEATURES__
+
+## Highlights
+
+<!-- fill: the two or three changes a user will notice first, each in one or two plain sentences. -->
+
+## Compatibility
+
+<!-- fill: one line first: "Upgrade effort: none", "minor" or "required", and why. Then the version bump (from __PREVIOUS__ to __VERSION__) and its reason. -->
+
+### Breaking changes
+
+<!-- fill: "None." or one :::danger block per break: who is affected, what stops working, and the steps to move over. -->
+
+### Deprecations
+
+<!-- fill: "None." or one :::warning block per deprecation with its replacement and when it goes away. -->
+
+## Known limitations
+
+<!-- fill: "None." or what does not work yet, its workaround, and the roadmap task that addresses it. -->
+
+## Technical details
+
+:::details Technical details
+<!-- fill: Java API compatibility report result against __PREVIOUS__; MCP protocol versions served and supported; minimum Java version and dependency changes; the gate results (CI run, SonarQube, security alerts, conformance) with links; Maven coordinates. -->
+:::

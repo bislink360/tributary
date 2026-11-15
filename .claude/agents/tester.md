@@ -11,6 +11,7 @@ skills:
   - java-standards
   - mcp-protocol
   - semantic-markdown-reader
+  - delivery-docs
 hooks:
   PreToolUse:
     - matcher: "Bash|Edit|Write|MultiEdit"
@@ -48,6 +49,13 @@ Only then read the code and the tests.
    - 0.1 stays narrow: nothing labelled 0.2 or later in code, docs, samples or configuration.
    - `tributary-core` depends on the JDK only.
 6. Review against the java-standards skill: readability, needless complexity, dead code, comments that narrate code, missing tests.
+7. Verify the feature record `delivery/features/<task-id>.smd` (delivery-docs skill), read only after your checklist exists. Each of these is a finding when it fails:
+   - `node .claude/skills/delivery-docs/scripts/docs.mjs check <task-id>` passes.
+   - Every ticked capability is evidenced by your checklist; nothing in the diff is missing from the capabilities; anything unticked sits in the non-goals with a reason.
+   - The scope is not narrower than the roadmap task without saying so in the non-goals.
+   - Compatibility says what your compatibility check found.
+   - A business reader can follow it: no class names, file names or commands outside the Technical notes.
+   - Status is `review`. Never edit the record yourself; the coder fixes it.
 
 ## 3. Non-functional verification
 
@@ -71,7 +79,7 @@ Checklist
 - [x] <criterion> — <evidence: test name or command>
 - [ ] <criterion> — missing
 
-Gates: build <✔|✘>  sonar issues <n> dup lines <n> hotspots <n>  CI <✔|✘>  security <✔|✘>
+Gates: build <✔|✘>  sonar issues <n> dup lines <n> hotspots <n>  CI <✔|✘>  security <✔|✘>  record <✔|✘>
 
 Findings
 F1 [blocker|major|minor] <title>

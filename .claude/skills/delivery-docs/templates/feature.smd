@@ -1,0 +1,45 @@
+---
+smd: 2
+title: "__ID__: __TITLE__"
+summary: "__SUMMARY__"
+status: draft
+owners: ["__OWNER__"]
+tags: [feature]
+updated: __DATE__
+task: __ID__
+priority: __PRIORITY__
+---
+
+## Scope
+
+**Roadmap task:** __ID__ · __TEXT__
+
+<!-- fill: two or three sentences for a business reader: what this makes possible, for whom, and why it matters now. -->
+
+### In scope
+
+<!-- fill: bullets in plain words. -->
+
+:::non-goals
+<!-- fill: what a reader might expect here but won't get, each with where it goes instead (a roadmap task id), or "None." -->
+:::
+
+## Capabilities {#capabilities}
+
+:progress{basis=tasks}
+
+<!-- fill: one line per capability, outcome first, with an id: - [ ] Every pull request is built and tested before it can merge {#__ID__-1} -->
+
+## Compatibility
+
+<!-- fill: one plain answer first: "Nothing changes for existing users." or who is affected and what they must do. Then any change to behavior people rely on. -->
+
+## Technical notes
+
+:::details Technical notes
+<!-- fill: a short list for engineers: public API added or changed (japicmp result), protocol behavior, configuration, dependencies. -->
+:::
+
+## Delivery
+
+Not merged yet.

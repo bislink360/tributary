@@ -2,8 +2,10 @@
 // Stand-in for `claude -p --agent <role>` in harness tests. Replays the scenario's next answer for the role
 // and logs each call. Env: TRIBUTARY_HARNESS_STUB_DIR (holds scenario.json, calls.jsonl, counters.json).
 
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const dir = process.env.TRIBUTARY_HARNESS_STUB_DIR;
 const args = process.argv.slice(2);
@@ -20,6 +22,23 @@ writeFileSync(countersFile, JSON.stringify(counters));
 const scenario = JSON.parse(readFileSync(path.join(dir, 'scenario.json'), 'utf8'));
 const answer = scenario[role]?.[index];
 appendFileSync(path.join(dir, 'calls.jsonl'), JSON.stringify({ tool: 'claude', role, resume: option('--resume'), prompt }) + '\n');
+
+const git = (...gitArgs) => spawnSync('git', gitArgs, { encoding: 'utf8' }).stdout.trim();
+
+// "__record": commit a filled feature record on the answer's branch, as a coder would.
+if (answer?.__record) {
+  const task = /task (\S+)/.exec(prompt)[1];
+  const fixture = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'feature.smd');
+  const record = path.join('delivery', 'features', `${task}.smd`);
+  git('switch', '-c', answer.branch);
+  mkdirSync(path.dirname(record), { recursive: true });
+  writeFileSync(record, readFileSync(fixture, 'utf8').replaceAll('__ID__', task));
+  git('add', record);
+  git('commit', '-m', `feat(${task}): demo`);
+  delete answer.__record;
+}
+// "@head" stands for the commit the worktree is on.
+if (answer?.head_sha === '@head') answer.head_sha = git('rev-parse', 'HEAD');
 
 if (answer === undefined) {
   console.log(JSON.stringify({ type: 'result', is_error: true, result: `stub: no answer ${index} for ${role}` }));

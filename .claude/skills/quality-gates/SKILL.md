@@ -13,6 +13,7 @@ Every gate is pass or fail on evidence from the current commit. Use `./mvnw` onc
 | SonarQube | 0 open issues (bugs, vulnerabilities, code smells), 0 duplicated lines, 0 hotspots to review |
 | CI | every check on the PR or commit concluded `success` (or `skipped` by design) |
 | Security | 0 open code-scanning alerts on the ref, dependency review passed, 0 open Dependabot alerts, 0 open secret-scanning alerts |
+| Feature record | `node .claude/skills/delivery-docs/scripts/docs.mjs check <task-id>` exits 0, and the record matches the change (delivery-docs skill) |
 
 ## SonarQube (local)
 

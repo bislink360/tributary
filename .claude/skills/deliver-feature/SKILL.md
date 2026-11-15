@@ -53,7 +53,7 @@ When you stop, run `node tools/sonar/sonar.mjs down` to free the local SonarQube
 
 ## Steps 2–4 through the harness (default)
 
-For a code task, run the implement → verify → merge loop with the delivery harness instead of spawning the agents yourself. It runs the coder and tester headless in their own git worktree (your checkout is never touched), routes FAIL reports back to the coder with sessions resumed, re-tests when the PR head moves, and merges only when QA passed on the exact head and every CI check is green. It also does the roadmap check-off from step 4.
+For a code task, run the implement → verify → merge loop with the delivery harness instead of spawning the agents yourself. It runs the coder and tester headless in their own git worktree (your checkout is never touched), routes FAIL reports back to the coder with sessions resumed, re-tests when the PR head moves, and merges only when QA passed on the exact head and every CI check is green. After each coder round it logs the feature record's progress; after the QA pass it marks the record delivered in one commit on top of the tested head (only `delivery/` changes), waits for CI on that commit, and merges it. It also does the roadmap check-off from step 4.
 
 ```bash
 node tools/harness/deliver.mjs <task-id>        # run in the background; it can take a long time
@@ -89,10 +89,18 @@ Spawn `tester` with the PR number and task id only — not the coder's reasoning
 
 ## 4. Merge
 
-With a QA PASS on the PR's current head and all checks green:
+With a QA PASS on the PR's current head and all checks green, first mark the feature record delivered on the PR branch (delivery-docs skill), so it reads "Delivered" exactly when the PR merges:
 
 ```bash
-gh pr merge <pr> --squash --delete-branch
+gh pr checkout <pr>
+node .claude/skills/delivery-docs/scripts/docs.mjs finalize <task-id> --pr <pr url>
+git add delivery && git commit -m "docs(<task-id>): mark the feature delivered" && git push
+```
+
+That commit touches only `delivery/`, so it needs no new QA round, but wait for CI on it. Then:
+
+```bash
+gh pr merge <pr> --squash --delete-branch --match-head-commit <that commit>
 ```
 
 Use a squash commit whose subject is the PR's Conventional Commit title, keeping `!` and the `BREAKING CHANGE:` footer when present. Then tell the user what merged.
@@ -108,8 +116,8 @@ Never set a requirement to implemented or verified and never answer a question: 
 
 ## 5. Release (only when asked)
 
-When the user asks to release, or several merged tasks complete a roadmap release, spawn `release`. Relay its `READY FOR APPROVAL` summary to the user verbatim, and only when the user approves that version in this conversation, resume the release agent to push the tag and create the draft GitHub release. Publishing the draft and any Maven Central deployment stay with the user.
+When the user asks to release, or several merged tasks complete a roadmap release, spawn `release`. Relay its `READY FOR APPROVAL` summary to the user verbatim with the path of the release record (`delivery/releases/X.Y.Z.md`), and only when the user approves that version in this conversation, resume the release agent to mark the record shipped, push the tag and create the draft GitHub release. Publishing the draft and any Maven Central deployment stay with the user.
 
 ## Reporting
 
-After each handoff, tell the user in one or two lines where things stand: which agent ran, the verdict, the PR link, and what happens next.
+After each handoff, tell the user in one or two lines where things stand: which agent ran, the verdict, the PR link, the feature's progress (`docs.mjs progress <task-id>`), and what happens next. When a run stops, include `docs.mjs list` so the user sees every feature's state.

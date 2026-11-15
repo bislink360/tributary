@@ -37,7 +37,7 @@ Before any product feature is built, every change to Tributary gets the same aut
 
 :progress{basis=tasks}
 
-- [ ] Everyone builds with the same pinned version of the build tool {#T0A-11-1}
+- [x] Everyone builds with the same pinned version of the build tool {#T0A-11-1}
 - [ ] Every pull request and every change to the main and release lines is built and tested automatically {#T0A-11-2}
 - [ ] Code that does not follow the agreed format fails the build {#T0A-11-3}
 - [ ] Test coverage is measured on every build and reported in a form the code-quality dashboard reads {#T0A-11-4}

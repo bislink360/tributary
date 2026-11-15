@@ -1,0 +1,45 @@
+---
+smd: 2
+title: "__ID__: Demo capability"
+summary: "A demo feature record used by the harness tests."
+status: review
+owners: ["@coder"]
+tags: [feature]
+updated: 2026-11-14
+task: __ID__
+priority: P0
+---
+
+## Scope
+
+**Roadmap task:** __ID__ · Demo task
+
+People can do the demo thing.
+
+### In scope
+
+- The demo thing
+
+:::non-goals
+- Anything else
+:::
+
+## Capabilities {#capabilities}
+
+:progress{basis=tasks}
+
+- [x] People can do the demo thing {#__ID__-1}
+
+## Compatibility
+
+Nothing changes for existing users.
+
+## Technical notes
+
+:::details Technical notes
+- None
+:::
+
+## Delivery
+
+Not merged yet.

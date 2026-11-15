@@ -2,6 +2,7 @@
 // Stand-in for the GitHub CLI in harness tests: answers the calls the harness makes from scenario.json
 // and logs each one. Env: TRIBUTARY_HARNESS_STUB_DIR.
 
+import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -24,7 +25,15 @@ const [command, sub] = args;
 if (command === 'auth') process.exit(0);
 if (command === 'repo') console.log('bislink360/tributary');
 else if (command === 'pr' && sub === 'list') console.log(JSON.stringify(scenario.pr_list ?? []));
-else if (command === 'pr' && sub === 'view') console.log(JSON.stringify(next('pr_view')));
+else if (command === 'pr' && sub === 'view') {
+  // "@pushed" stands for the branch head in the test remote (TRIBUTARY_HARNESS_REMOTE).
+  const view = { ...next('pr_view') };
+  if (view.headRefOid === '@pushed') {
+    const remote = process.env.TRIBUTARY_HARNESS_REMOTE;
+    view.headRefOid = spawnSync('git', ['-C', remote, 'rev-parse', `refs/heads/${view.headRefName}`], { encoding: 'utf8' }).stdout.trim();
+  }
+  console.log(JSON.stringify(view));
+}
 else if (command === 'pr' && (sub === 'checks' || sub === 'merge')) process.exit(0);
 else if (command === 'api') process.exit(0);
 else {

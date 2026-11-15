@@ -4,6 +4,8 @@ name: CI
 
 on:
   pull_request:
+    # edited: a breaking-change marker added to the title or body re-runs the API compatibility check.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main, "release/**"]
 
@@ -52,7 +54,13 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Test the API compatibility check
+        run: .github/scripts/test/api-compat-test.sh
       - name: Compare published modules with the latest release
+        # Passed through the environment, never interpolated into the script.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: .github/scripts/api-compat.sh
       - name: Upload compatibility report
         if: always()

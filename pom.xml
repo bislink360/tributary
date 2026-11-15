@@ -36,6 +36,12 @@
 
         <!-- Set to true in modules that are never published (see the api-compat profile). -->
         <api-compat.skip>false</api-compat.skip>
+
+        <!--
+          Fail on any binary or source incompatibility with the baseline (api-compat profile).
+          The CI script sets it to false only for a declared breaking change.
+        -->
+        <api-compat.break>true</api-compat.break>
     </properties>
 
     <dependencyManagement>
@@ -175,7 +181,8 @@
                                 <onlyModified>true</onlyModified>
                                 <skipPomModules>true</skipPomModules>
                                 <ignoreMissingOldVersion>true</ignoreMissingOldVersion>
-                                <breakBuildBasedOnSemanticVersioning>true</breakBuildBasedOnSemanticVersioning>
+                                <breakBuildOnBinaryIncompatibleModifications>${api-compat.break}</breakBuildOnBinaryIncompatibleModifications>
+                                <breakBuildOnSourceIncompatibleModifications>${api-compat.break}</breakBuildOnSourceIncompatibleModifications>
                             </parameter>
                         </configuration>
                         <executions>

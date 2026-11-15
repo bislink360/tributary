@@ -8,7 +8,7 @@ What Tributary is building and shipping, in plain terms. Each feature record say
 
 | Feature | Status | Progress | Release |
 | --- | --- | --- | --- |
-| [T0A-11: Automatic quality checks on every change](features/T0A-11.md) | In progress | ▰▰▰▰▰▰▰▰▰▱ 89% | Not yet released |
+| [T0A-11: Automatic quality checks on every change](features/T0A-11.md) | In QA | ▰▰▰▰▰▰▰▰▰▰ 100% | Not yet released |
 
 ## Releases
 

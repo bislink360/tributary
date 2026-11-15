@@ -1,0 +1,66 @@
+---
+smd: 2
+title: "T0A-11: Automatic quality checks on every change"
+summary: "Every proposed change to Tributary is built, tested, format-checked and scanned for security problems before it can reach the main line, and dependencies are kept up to date automatically."
+status: draft
+owners: ["@roshan"]
+tags: [feature]
+updated: 2026-11-15
+task: T0A-11
+priority: P0
+---
+
+## Scope
+
+**Roadmap task:** T0A-11 · Set up the CI quality gates on `main`: Maven wrapper, build and test workflow, CodeQL, dependency review, Dependabot, formatting check, coverage report
+
+Before any product feature is built, every change to Tributary gets the same automatic checks: it must build, pass its tests, follow the agreed code format and come through security scanning. This gives everyone who later relies on Tributary confidence that nothing reaches the main line unchecked, and it gives the delivery team one consistent bar from the first feature onwards.
+
+### In scope
+
+- One pinned build tool version, so every developer, agent and CI run builds the same way.
+- Automatic build, test and format checks on every pull request and on the main and release lines.
+- Security scanning of the code and of the build workflows, on every change and weekly.
+- A check that blocks pull requests adding dependencies with known serious vulnerabilities.
+- Weekly automatic proposals to update dependencies and build actions.
+- Test coverage measurement, ready for the code-quality dashboard.
+- A compatibility check that will compare each published module with the previous release, once a first release exists.
+- A security policy telling people how to report a vulnerability privately.
+
+:::non-goals
+- Checks for blocked virtual threads and the build of the Java examples: they arrive with the 0.1 build work (roadmap task T01-3).
+- Making these checks mandatory for merging: that is a repository setting that needs the owner's approval once the checks have run for the first time.
+- Publishing anything: nothing is released or deployed by this task.
+:::
+
+## Capabilities {#capabilities}
+
+:progress{basis=tasks}
+
+- [ ] Everyone builds with the same pinned version of the build tool {#T0A-11-1}
+- [ ] Every pull request and every change to the main and release lines is built and tested automatically {#T0A-11-2}
+- [ ] Code that does not follow the agreed format fails the build {#T0A-11-3}
+- [ ] Test coverage is measured on every build and reported in a form the code-quality dashboard reads {#T0A-11-4}
+- [ ] The code and the build workflows are scanned for security problems on every change and every week {#T0A-11-5}
+- [ ] Pull requests that add dependencies with known high or critical vulnerabilities are blocked {#T0A-11-6}
+- [ ] Updates for dependencies and build actions are proposed automatically every week {#T0A-11-7}
+- [ ] Each published module is checked for incompatible changes against the latest release, and the check says clearly when there is no release yet {#T0A-11-8}
+- [ ] People know which versions are supported and how to report a vulnerability privately {#T0A-11-9}
+
+## Compatibility
+
+Nothing changes for existing users: there is no released version yet, and this task changes only how changes are checked, not what Tributary does.
+
+## Technical notes
+
+:::details Technical notes
+- Maven Wrapper pins Maven; CI runs `./mvnw -B verify` on JDK 21 (Temurin).
+- Workflows: `ci.yml` (build, test, API compatibility), `codeql.yml` (`java-kotlin` and `actions`), `dependency-review.yml` (fails on high or critical), `.github/dependabot.yml` (maven, github-actions, weekly).
+- Parent POM: Spotless with google-java-format (`check` bound to `verify`), JaCoCo XML report, Sonar Maven plugin pinned in `pluginManagement`, `sonar.projectKey=tributary`, japicmp against the latest `v*` tag.
+- Every workflow has read-only default permissions, actions pinned to full commit SHAs and cancel-superseded concurrency groups.
+- No public API is added or changed.
+:::
+
+## Delivery
+
+Not merged yet.

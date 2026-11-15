@@ -1,0 +1,63 @@
+# CodeQL security scanning of the Java code and of the GitHub Actions workflows.
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main, "release/**"]
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: java-kotlin
+            sources: "**/*.java"
+          - language: actions
+            sources: ".github/workflows/*.yml"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Look for sources
+        id: sources
+        env:
+          HAS_SOURCES: ${{ hashFiles(matrix.sources) != '' }}
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          echo "present=${HAS_SOURCES}" >> "$GITHUB_OUTPUT"
+          if [[ "${HAS_SOURCES}" != "true" ]]; then
+            echo "CodeQL (${LANGUAGE}): the repository has no ${LANGUAGE} sources yet. Analysis skipped."
+          fi
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        if: steps.sources.outputs.present == 'true' && matrix.language == 'java-kotlin'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: steps.sources.outputs.present == 'true'
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: steps.sources.outputs.present == 'true'
+        with:
+          category: /language:${{ matrix.language }}

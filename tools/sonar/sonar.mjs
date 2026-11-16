@@ -168,7 +168,8 @@ function tokenEnv() {
 }
 
 function scan() {
-  const wrapper = isWindows ? 'mvnw.cmd' : './mvnw';
+  // An explicit relative path: cmd.exe may be told not to search the current directory.
+  const wrapper = isWindows ? '.\\mvnw.cmd' : './mvnw';
   const maven = existsSync(path.join(repoRoot, isWindows ? 'mvnw.cmd' : 'mvnw')) ? wrapper : 'mvn';
   const status = run(maven, ['-B', 'clean', 'verify', SCANNER, `-Dsonar.host.url=${HOST}`, `-Dsonar.projectKey=${PROJECT_KEY}`], {
     shell: isWindows,

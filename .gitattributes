@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings to run on Linux CI; Windows scripts keep CRLF.
+mvnw text eol=lf
+*.sh text eol=lf
+*.cmd text eol=crlf
+# Java sources are LF everywhere, so Spotless expects the same line endings on every OS.
+*.java text eol=lf

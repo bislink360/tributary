@@ -11,6 +11,11 @@
 
     <artifactId>tributary-spike</artifactId>
 
+    <properties>
+        <!-- Feasibility spike: never published, so it has no API to keep compatible. -->
+        <api-compat.skip>true</api-compat.skip>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>

@@ -7,7 +7,19 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 sandbox="$(mktemp -d)"
-trap 'rm -rf "${sandbox}"' EXIT
+
+# The baseline install writes test-only artifacts to the local Maven repository; remove them on exit.
+local_repo="$(cd "${repo_root}" && ./mvnw -B -q help:evaluate -Dexpression=settings.localRepository -DforceStdout)"
+if command -v cygpath >/dev/null; then local_repo="$(cygpath -u "${local_repo}")"; fi
+test_artifacts=(
+  "${local_repo}/com/bislink360/tributary/0.0.0-test"
+  "${local_repo}/com/bislink360/tributary-spike/0.0.0-test"
+  "${local_repo}/com/bislink360/api-compat-probe"
+)
+cleanup() {
+  rm -rf "${sandbox}" "${test_artifacts[@]}"
+}
+trap cleanup EXIT
 
 failures=0
 pass() { echo "PASS: $1"; }
@@ -47,25 +59,52 @@ amend() {
   git -C "${sandbox}" commit -q --amend -m "$1"
 }
 
-# Runs the check against the baseline commit, without PR context unless the caller passes
-# PR_TITLE/PR_BODY assignments; prints the exit code.
+switch_to() {
+  git -C "${sandbox}" switch -q -c "$1" "$2"
+}
+
+head_sha() {
+  git -C "${sandbox}" rev-parse HEAD
+}
+
+# Runs the check against the baseline commit as a push (no PR context) unless the caller passes
+# PR_TITLE, PR_BODY or BASE_SHA assignments; prints the exit code.
 run_check() {
   local log="$1"
   shift
   local status=0
-  (cd "${sandbox}" && env -u PR_TITLE -u PR_BODY API_COMPAT_BASELINE_REF="${baseline}" "$@" \
+  (cd "${sandbox}" && env -u PR_TITLE -u PR_BODY -u BASE_SHA API_COMPAT_BASELINE_REF="${baseline}" "$@" \
     bash .github/scripts/api-compat.sh) >"${log}" 2>&1 || status=$?
   echo "${status}"
 }
 
-reports_removed_method() {
-  grep -rqs "METHOD_REMOVED" "${sandbox}/api-compat-probe/target/japicmp/"
+# expect <passes|fails> <case name> [assignments...]: runs the check and records the result.
+expect() {
+  local expected="$1" name="$2"
+  shift 2
+  local log="${sandbox}/case.log"
+  local status
+  status="$(run_check "${log}" "$@")"
+  if [[ "${expected}" == "passes" && "${status}" == "0" ]] || [[ "${expected}" == "fails" && "${status}" != "0" ]]; then
+    pass "${name} (exit ${status})"
+  else
+    fail "${name}: expected the check ${expected} (exit ${status})"
+    tail -n 30 "${log}"
+  fi
+}
+
+expect_removed_method_reported() {
+  if grep -rqs "METHOD_REMOVED" "${sandbox}/api-compat-probe/target/japicmp/"; then
+    pass "$1: the report lists the removed method"
+  else
+    fail "$1: the report must list the removed method"
+  fi
 }
 
 # Sandbox: the working tree plus a published probe module, released as 0.0.0-test.
 (cd "${repo_root}" && git ls-files -co --exclude-standard -z | xargs -0 tar -cf - --) |
   tar -xf - -C "${sandbox}"
-git -C "${sandbox}" init -q
+git -C "${sandbox}" init -q -b main
 git -C "${sandbox}" config core.autocrlf false
 git -C "${sandbox}" config user.name "api-compat test"
 git -C "${sandbox}" config user.email "api-compat-test@invalid"
@@ -78,54 +117,61 @@ sed -i 's|<module>tributary-spike</module>|<module>tributary-spike</module><modu
 write_api a
 set_version "1.0-SNAPSHOT" "0.0.0-test"
 commit "chore: release 0.0.0-test"
-baseline="$(git -C "${sandbox}" rev-parse HEAD)"
+baseline="$(head_sha)"
 set_version "0.0.0-test" "0.0.1-test-SNAPSHOT"
 commit "chore: next development version"
+development="$(head_sha)"
 
-# 1. Undeclared break: removing a public method must fail the check.
+# 1. Undeclared break pushed: removing a public method fails the check.
+switch_to undeclared "${development}"
 write_api
 commit "feat: remove a"
-status="$(run_check "${sandbox}/undeclared.log")"
-if [[ "${status}" != "0" ]] && reports_removed_method; then
-  pass "undeclared break fails the check (exit ${status})"
-else
-  fail "undeclared break must fail the check (exit ${status})"
-  tail -n 30 "${sandbox}/undeclared.log"
-fi
+expect fails "1. undeclared break"
+expect_removed_method_reported "1. undeclared break"
 
-# 2. Break declared with '!' in the commit header: reported, not failed.
+# 2. Break declared with '!' in the pushed commit header: reported, not failed.
 amend "feat!: remove a"
-status="$(run_check "${sandbox}/declared-header.log")"
-if [[ "${status}" == "0" ]] && reports_removed_method && grep -q "report only" "${sandbox}/declared-header.log"; then
-  pass "break declared with '!' is reported, not failed"
-else
-  fail "break declared with '!' must pass and report (exit ${status})"
-  tail -n 30 "${sandbox}/declared-header.log"
-fi
+expect passes "2. break declared with '!'"
+expect_removed_method_reported "2. break declared with '!'"
+grep -q "report only" "${sandbox}/case.log" && pass "2. says the break is report only" ||
+  fail "2. must say the break is report only"
 
 # 3. Break declared with a BREAKING CHANGE footer in the pull request body: reported, not failed.
 amend "Merge pull request head into base"
-status="$(run_check "${sandbox}/declared-pr.log" PR_TITLE="feat: remove a" PR_BODY=$'Removes a.\n\nBREAKING CHANGE: a removed')"
-if [[ "${status}" == "0" ]] && reports_removed_method; then
-  pass "break declared in the pull request body is reported, not failed"
-else
-  fail "break declared in the pull request body must pass (exit ${status})"
-  tail -n 30 "${sandbox}/declared-pr.log"
-fi
+expect passes "3. break declared in the pull request body" \
+  PR_TITLE="feat: remove a" PR_BODY=$'Removes a.\n\nBREAKING CHANGE: a removed' BASE_SHA="${development}"
+expect_removed_method_reported "3. break declared in the pull request body"
 
 # 4. Compatible change: adding a method passes.
+switch_to compatible "${development}"
 write_api a b
-amend "feat: add b"
-status="$(run_check "${sandbox}/compatible.log")"
-if [[ "${status}" == "0" ]]; then
-  pass "compatible change passes"
-else
-  fail "compatible change must pass (exit ${status})"
-  tail -n 30 "${sandbox}/compatible.log"
-fi
+commit "feat: add b"
+expect passes "4. compatible change"
+
+# 5. A declared break merged since the release, then a compatible change pushed: passes.
+switch_to after-declared-break "${development}"
+write_api
+commit "feat!: remove a"
+write_api b
+commit "feat: add b"
+expect passes "5. compatible push after a declared break merged"
+
+# 6. Same history, a compatible pull request on top of it: passes.
+base="$(head_sha)"
+write_api b c
+commit "Merge pull request head into base"
+expect passes "6. compatible pull request after a declared break merged" \
+  PR_TITLE="feat: add c" PR_BODY="Adds c." BASE_SHA="${base}"
+
+# 7. A '!' only on a pull request branch commit does not count: squash merge discards it.
+switch_to branch-commit-only "${development}"
+write_api
+commit "feat!: remove a"
+expect fails "7. break declared only in a branch commit" \
+  PR_TITLE="feat: remove a" PR_BODY="Removes a." BASE_SHA="${development}"
 
 if ((failures > 0)); then
-  echo "${failures} API compatibility case(s) failed."
+  echo "${failures} API compatibility check(s) failed."
   exit 1
 fi
 echo "All API compatibility cases passed."

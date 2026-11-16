@@ -2,12 +2,13 @@
 smd: 2
 title: "T0A-11: Automatic quality checks on every change"
 summary: "Every proposed change to Tributary is built, tested, format-checked and scanned for security problems before it can reach the main line, and dependencies are kept up to date automatically."
-status: review
+status: approved
 owners: ["@roshan"]
 tags: [feature]
-updated: 2026-11-15
+updated: 2026-11-16
 task: T0A-11
 priority: P0
+pr: "https://github.com/bislink360/tributary/pull/4"
 ---
 
 ## Scope
@@ -66,4 +67,4 @@ Nothing changes for existing users: there is no released version yet, and this t
 
 ## Delivery
 
-Not merged yet.
+Delivered on 2026-11-16 through [pull request #4](https://github.com/bislink360/tributary/pull/4), merged after QA passed on its final commit.

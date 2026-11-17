@@ -105,6 +105,37 @@ const cases = [
     },
   },
   {
+    name: 'GitHub lags behind the delivered commit: waits for it instead of re-testing, then merges that commit',
+    scenario: { coder: [coder('@head', { __record: true })], tester: [tester('PASS', '@head')], gh: { pr_view: [pr('@parent'), pr('@parent'), pr('@pushed')] } },
+    exit: 0,
+    check: (calls, { remote }) => {
+      const pushed = spawnSync('git', ['-C', remote, 'rev-parse', 'refs/heads/feat/T-X-1-demo'], { encoding: 'utf8' }).stdout.trim();
+      expect(calls.filter((c) => c.role === 'tester').length, 1);
+      expect(calls.find((c) => c.tool === 'gh' && c.args[1] === 'merge').args.join(' '), `pr merge 7 --squash --match-head-commit ${pushed}`);
+    },
+  },
+  {
+    name: 'GitHub never catches up with the delivered commit: stops for a person without spending QA rounds',
+    scenario: { coder: [coder('@head', { __record: true })], tester: [tester('PASS', '@head')], gh: { pr_view: [pr('@parent')] } },
+    exit: 3,
+    check: (calls) => {
+      expect(calls.filter((c) => c.role === 'tester').length, 1);
+      expect(calls.some((c) => c.tool === 'gh' && c.args[1] === 'merge'), false);
+    },
+  },
+  {
+    name: 'agents get write access to docs and memory, and memory outlives the worktree',
+    scenario: { coder: [coder('a1', { __memory: 'coder note' })], tester: [{ ...tester('PASS', 'a1'), __memory: 'tester note' }], gh: { pr_view: [pr('a1')] } },
+    exit: 0,
+    check: (calls, { docs, memory }) => {
+      const agents = calls.filter((c) => c.tool === 'claude');
+      const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+      expect(agents.every((c) => c.addDirs.length === 2 && same(c.addDirs[0], docs) && same(c.addDirs[1], memory)), true);
+      expect(readFileSync(path.join(memory, 'coder', 'notes.md'), 'utf8'), 'coder note');
+      expect(readFileSync(path.join(memory, 'tester', 'notes.md'), 'utf8'), 'tester note');
+    },
+  },
+  {
     name: 'tester ERROR: stops for a person',
     scenario: { coder: [coder('a1')], tester: [{ ...tester('ERROR', 'a1'), error: 'Docker is not running' }], gh: {} },
     exit: 3,
@@ -134,6 +165,7 @@ for (const [index, testCase] of cases.entries()) {
   const worktrees = mkdtempSync(path.join(os.tmpdir(), 'harness-wt-'));
   const docs = mkdtempSync(path.join(os.tmpdir(), 'harness-docs-'));
   const remote = mkdtempSync(path.join(os.tmpdir(), 'harness-remote-'));
+  const memory = path.join(mkdtempSync(path.join(os.tmpdir(), 'harness-memory-')), 'agent-memory');
   spawnSync('git', ['init', '--bare', '--quiet', remote]);
   mkdirSync(path.join(docs, 'validation'));
   writeFileSync(path.join(docs, 'roadmap.smd'), `---
@@ -161,6 +193,8 @@ updated: 2026-11-14
       TRIBUTARY_HARNESS_WORKTREES: worktrees,
       TRIBUTARY_HARNESS_DOCS: docs,
       TRIBUTARY_HARNESS_REMOTE: remote,
+      TRIBUTARY_HARNESS_MEMORY: memory,
+      TRIBUTARY_HARNESS_POLL_MS: '10',
     },
   });
   const calls = existsSync(path.join(stubDir, 'calls.jsonl'))
@@ -168,7 +202,7 @@ updated: 2026-11-14
     : [];
   try {
     expect(result.status, testCase.exit);
-    testCase.check(calls, { remote, task });
+    testCase.check(calls, { remote, task, docs, memory });
     if (!existsSync(path.join(docs, 'roadmap.smd'))) throw new Error('the test roadmap disappeared through the docs link');
     if (realRoadmapBefore !== null && readFileSync(realRoadmap, 'utf8') !== realRoadmapBefore) throw new Error('the real docs/roadmap.smd changed');
     console.log(`PASS  ${testCase.name}`);
@@ -178,13 +212,15 @@ updated: 2026-11-14
   }
   for (const entry of readdirSync(worktrees)) {
     if (entry === '.runs') continue;
-    const docsLink = path.join(worktrees, entry, 'docs');
-    if (isLink(docsLink)) unlinkSync(docsLink);
+    for (const name of ['docs', path.join('.claude', 'agent-memory')]) {
+      const link = path.join(worktrees, entry, name);
+      if (isLink(link)) unlinkSync(link);
+    }
     spawnSync('git', ['worktree', 'remove', '--force', path.join(worktrees, entry)], { cwd: repoRoot });
   }
   spawnSync('git', ['worktree', 'prune'], { cwd: repoRoot });
   spawnSync('git', ['branch', '-D', 'feat/T-X-1-demo'], { cwd: repoRoot });
-  for (const dir of [stubDir, worktrees, docs, remote]) rmSync(dir, { recursive: true, force: true });
+  for (const dir of [stubDir, worktrees, docs, remote, path.dirname(memory)]) rmSync(dir, { recursive: true, force: true });
 }
 console.log(failed === 0 ? `all ${cases.length} passed` : `${failed} of ${cases.length} failed`);
 process.exit(failed === 0 ? 0 : 1);

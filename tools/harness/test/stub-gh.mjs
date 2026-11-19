@@ -26,11 +26,13 @@ if (command === 'auth') process.exit(0);
 if (command === 'repo') console.log('bislink360/tributary');
 else if (command === 'pr' && sub === 'list') console.log(JSON.stringify(scenario.pr_list ?? []));
 else if (command === 'pr' && sub === 'view') {
-  // "@pushed" stands for the branch head in the test remote (TRIBUTARY_HARNESS_REMOTE).
+  // "@pushed" stands for the branch head in the test remote (TRIBUTARY_HARNESS_REMOTE), "@parent" for the
+  // commit before it (what GitHub reports while it lags behind a push).
   const view = { ...next('pr_view') };
-  if (view.headRefOid === '@pushed') {
+  const refs = { '@pushed': `refs/heads/${view.headRefName}`, '@parent': `refs/heads/${view.headRefName}^` };
+  if (refs[view.headRefOid]) {
     const remote = process.env.TRIBUTARY_HARNESS_REMOTE;
-    view.headRefOid = spawnSync('git', ['-C', remote, 'rev-parse', `refs/heads/${view.headRefName}`], { encoding: 'utf8' }).stdout.trim();
+    view.headRefOid = spawnSync('git', ['-C', remote, 'rev-parse', refs[view.headRefOid]], { encoding: 'utf8' }).stdout.trim();
   }
   console.log(JSON.stringify(view));
 }

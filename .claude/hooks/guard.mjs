@@ -113,9 +113,10 @@ function editViolations(toolInput, cwd) {
     const root = currentRepoRoot(cwd);
     const relative = root ? path.relative(root, path.resolve(cwd, file)) : '';
     const insideRepo = root && !relative.startsWith('..') && !path.isAbsolute(relative);
-    const allowed = /(^|[\\/])target[\\/]/.test(relative) || /^docs[\\/]validation[\\/]/.test(relative);
+    const allowed =
+      /(^|[\\/])target[\\/]/.test(relative) || /^docs[\\/]validation[\\/]/.test(relative) || /^\.claude[\\/]agent-memory[\\/]/.test(relative);
     if (insideRepo && !allowed) {
-      problems.push(`The tester writes only under target/ and docs/validation/, not ${relative}.`);
+      problems.push(`The tester writes only under target/, docs/validation/ and its memory in .claude/agent-memory/, not ${relative}.`);
     }
   }
   return problems;

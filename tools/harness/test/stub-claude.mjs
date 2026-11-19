@@ -21,7 +21,16 @@ writeFileSync(countersFile, JSON.stringify(counters));
 
 const scenario = JSON.parse(readFileSync(path.join(dir, 'scenario.json'), 'utf8'));
 const answer = scenario[role]?.[index];
-appendFileSync(path.join(dir, 'calls.jsonl'), JSON.stringify({ tool: 'claude', role, resume: option('--resume'), prompt }) + '\n');
+const addDirs = args.filter((_, i) => args[i - 1] === '--add-dir');
+appendFileSync(path.join(dir, 'calls.jsonl'), JSON.stringify({ tool: 'claude', role, resume: option('--resume'), prompt, addDirs }) + '\n');
+
+// "__memory": write a project-memory note, as an agent with `memory: project` would.
+if (answer?.__memory) {
+  const note = path.join('.claude', 'agent-memory', role, 'notes.md');
+  mkdirSync(path.dirname(note), { recursive: true });
+  writeFileSync(note, answer.__memory);
+  delete answer.__memory;
+}
 
 const git = (...gitArgs) => spawnSync('git', gitArgs, { encoding: 'utf8' }).stdout.trim();
 

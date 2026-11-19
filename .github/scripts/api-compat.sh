@@ -56,7 +56,19 @@ baseline_dir="$(mktemp -d)"
 trap 'git worktree remove --force "${baseline_dir}"' EXIT
 git worktree add --detach "${baseline_dir}" "${baseline_ref}"
 
-baseline_version="$(cd "${baseline_dir}" && ./mvnw -B -q help:evaluate -Dexpression=project.version -DforceStdout)"
+# Prints the value of a Maven expression. Quiet mode prints Maven's errors on stdout, where the
+# caller's command substitution would hide them, so a failure repeats them on stderr.
+maven_value() {
+  local output
+  if ! output="$(./mvnw -B -q help:evaluate "-Dexpression=$1" -DforceStdout)"; then
+    echo "Maven could not evaluate $1:" >&2
+    echo "${output}" >&2
+    return 1
+  fi
+  echo "${output}"
+}
+
+baseline_version="$(cd "${baseline_dir}" && maven_value project.version)"
 echo "API compatibility: comparing with ${baseline_ref} (version ${baseline_version})."
 (cd "${baseline_dir}" && ./mvnw -B -q install -DskipTests)
 

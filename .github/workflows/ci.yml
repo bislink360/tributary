@@ -28,7 +28,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
+      # Not setup-java's `cache: maven`: it restores only an exact POM match, so every dependency
+      # bump downloads the whole repository again and Maven Central answers 429. The restore key
+      # falls back to the job's latest cache, and a bump fetches only what changed.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
+          key: maven-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
+          restore-keys: maven-${{ runner.os }}-${{ github.job }}-
       - name: Build, test, check formatting and report coverage
         run: ./mvnw -B verify
       - name: Upload test reports
@@ -53,7 +62,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
+      # Same cache as the build job, under this job's own key (see there).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
+          key: maven-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
+          restore-keys: maven-${{ runner.os }}-${{ github.job }}-
       - name: Test the API compatibility check
         run: .github/scripts/test/api-compat-test.sh
       - name: Compare published modules with the latest release

@@ -9,7 +9,12 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 sandbox="$(mktemp -d)"
 
 # The baseline install writes test-only artifacts to the local Maven repository; remove them on exit.
-local_repo="$(cd "${repo_root}" && ./mvnw -B -q help:evaluate -Dexpression=settings.localRepository -DforceStdout)"
+# Quiet mode prints Maven's errors on stdout, where the substitution would hide them; show them.
+if ! local_repo="$(cd "${repo_root}" && ./mvnw -B -q help:evaluate -Dexpression=settings.localRepository -DforceStdout)"; then
+  echo "Maven could not evaluate settings.localRepository:" >&2
+  echo "${local_repo}" >&2
+  exit 1
+fi
 if command -v cygpath >/dev/null; then local_repo="$(cygpath -u "${local_repo}")"; fi
 test_artifacts=(
   "${local_repo}/com/bislink360/tributary/0.0.0-test"

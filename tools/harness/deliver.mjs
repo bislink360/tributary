@@ -18,8 +18,9 @@
 // Exit codes: 0 merged (or passed with --no-merge), 2 error, 3 needs a person, 4 QA did not converge.
 //
 // Agents work in a separate git worktree (<repo>-worktrees/<task>), so the main checkout is never touched.
-// docs/ (git-ignored, the only copy of the roadmap) is linked into it, never copied, and the link is
-// removed before the worktree is. The feature record (delivery/features/<task>.smd, committed) is marked
+// docs/ (git-ignored, the only copy of the roadmap) and .claude/agent-memory/ (the agents' project memory)
+// are linked into it, never copied, so evidence and memory outlive the worktree; the links are removed
+// before the worktree is, and agents get write access to their targets. The feature record (delivery/features/<task>.smd, committed) is marked
 // delivered by a harness commit on the PR branch right after the QA pass, so it reads "Delivered" exactly
 // when the PR merges.
 
@@ -31,12 +32,17 @@ import { fileURLToPath } from 'node:url';
 const EXIT = { done: 0, error: 2, needsPerson: 3, notConverging: 4 };
 const approvals = new Set();
 const CHECK_WAIT_MS = 60 * 60 * 1000;
+const POLL_MS = Number(process.env.TRIBUTARY_HARNESS_POLL_MS ?? 5000);
+// GitHub can report the previous PR head for a while after a push: wait up to 24 polls (2 minutes).
+const HEAD_WAIT_POLLS = 24;
 const REMOTE = process.env.TRIBUTARY_HARNESS_REMOTE ?? 'origin';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // TRIBUTARY_HARNESS_DOCS points the docs link elsewhere (the tests use a throwaway roadmap).
 const docsRoot = path.resolve(process.env.TRIBUTARY_HARNESS_DOCS ?? path.join(repoRoot, 'docs'));
 const roadmapFile = path.join(docsRoot, 'roadmap.smd');
+// TRIBUTARY_HARNESS_MEMORY moves the shared agent memory (the tests use a throwaway folder).
+const memoryRoot = path.resolve(process.env.TRIBUTARY_HARNESS_MEMORY ?? path.join(repoRoot, '.claude', 'agent-memory'));
 const worktreesRoot =
   process.env.TRIBUTARY_HARNESS_WORKTREES ?? path.join(path.dirname(repoRoot), `${path.basename(repoRoot)}-worktrees`);
 
@@ -118,10 +124,22 @@ function findOpenPr(task) {
   return prs.find((pr) => pr.headRefName.includes(`/${task}-`) || inTitle.test(pr.title));
 }
 
-function linkDocs(worktree) {
-  const link = path.join(worktree, 'docs');
+const DOCS_LINK = 'docs';
+const MEMORY_LINK = path.join('.claude', 'agent-memory');
+
+function linkShared(worktree) {
   if (!existsSync(roadmapFile)) throw new Stop(EXIT.error, `${docsRoot} has no roadmap.smd`);
-  if (!existsSync(link)) symlinkSync(docsRoot, link, process.platform === 'win32' ? 'junction' : 'dir');
+  mkdirSync(memoryRoot, { recursive: true });
+  for (const [name, target] of [[DOCS_LINK, docsRoot], [MEMORY_LINK, memoryRoot]]) {
+    const link = path.join(worktree, name);
+    if (isLink(link)) continue;
+    if (existsSync(link)) {
+      log(`${name} is a folder in the worktree, not a link; agents keep using it there`);
+      continue;
+    }
+    mkdirSync(path.dirname(link), { recursive: true });
+    symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
+  }
 }
 
 function ensureWorktree(task, branch, base) {
@@ -139,16 +157,18 @@ function ensureWorktree(task, branch, base) {
     }
     log(`created worktree ${worktree}`);
   }
-  linkDocs(worktree);
+  linkShared(worktree);
   return worktree;
 }
 
-// The docs link is removed first, and only if it is a link: deleting through it would destroy the roadmap.
+// The links are removed first, and only if they are links: deleting through one would destroy the roadmap
+// or the agents' memory.
 function removeWorktree(worktree) {
-  const link = path.join(worktree, 'docs');
-  if (existsSync(link) || isLink(link)) {
-    if (!isLink(link)) throw new Stop(EXIT.error, `${link} is not a link; leaving the worktree in place`);
-    unlinkSync(link);
+  const docsLink = path.join(worktree, DOCS_LINK);
+  if (existsSync(docsLink) && !isLink(docsLink)) throw new Stop(EXIT.error, `${docsLink} is not a link; leaving the worktree in place`);
+  for (const name of [DOCS_LINK, MEMORY_LINK]) {
+    const link = path.join(worktree, name);
+    if (isLink(link)) unlinkSync(link);
   }
   if (!existsSync(roadmapFile)) throw new Stop(EXIT.error, 'docs/roadmap.smd is missing after unlinking');
   const removed = git(['worktree', 'remove', worktree], { allowFailure: true });
@@ -213,7 +233,7 @@ function runAgent(state, role, prompt, worktree, options) {
   writeFileSync(contractFile, CONTRACTS[role]);
 
   const invoke = (text, sessionId) => {
-    const args = ['-p', '--agent', role, '--output-format', 'json', '--permission-mode', options.permissionMode, '--append-system-prompt-file', contractFile];
+    const args = ['-p', '--agent', role, '--output-format', 'json', '--permission-mode', options.permissionMode, '--append-system-prompt-file', contractFile, '--add-dir', docsRoot, '--add-dir', memoryRoot];
     if (sessionId) args.push('--resume', sessionId);
     if (options.budgetUsd) args.push('--max-budget-usd', String(options.budgetUsd));
     state.step += 1;
@@ -264,7 +284,22 @@ function mergeGate(pr, testedSha, options) {
   let status = prStatus(pr);
   if (status.state !== 'OPEN') return { person: `PR #${pr} is ${status.state}` };
   if (status.isDraft) return { fix: `PR #${pr} is still a draft; mark it ready once finished` };
-  if (status.headRefOid !== testedSha) return { retest: `the PR head moved to ${status.headRefOid} after QA verified ${testedSha}` };
+  if (status.headRefOid !== testedSha) {
+    // The branch itself still points at the tested commit: GitHub has not caught up with the last push yet.
+    const branchHead = () => git(['ls-remote', REMOTE, `refs/heads/${status.headRefName}`], { allowFailure: true }).stdout.split(/\s/)[0];
+    if (branchHead() === testedSha) {
+      log(`waiting for GitHub to show ${testedSha.slice(0, 7)} as the head of PR #${pr}…`);
+      for (let poll = 0; status.headRefOid !== testedSha && poll < HEAD_WAIT_POLLS; poll++) {
+        sleep(POLL_MS);
+        status = prStatus(pr);
+      }
+      if (status.headRefOid !== testedSha) {
+        return { person: `GitHub still shows ${status.headRefOid} as the head of PR #${pr}, but the branch is at the QA-verified ${testedSha}` };
+      }
+    } else {
+      return { retest: `the PR head moved to ${status.headRefOid} after QA verified ${testedSha}` };
+    }
+  }
 
   if (checksState(status.statusCheckRollup) === 'pending') {
     log('waiting for CI checks…');
@@ -277,7 +312,7 @@ function mergeGate(pr, testedSha, options) {
   if (checks === 'pending') return { person: `CI checks on PR #${pr} did not finish within an hour` };
 
   for (let attempt = 0; status.mergeable === 'UNKNOWN' && attempt < 6; attempt++) {
-    sleep(5000);
+    sleep(POLL_MS);
     status = prStatus(pr);
   }
   if (status.mergeable === 'CONFLICTING') return { fix: `PR #${pr} conflicts with main; merge origin/main into the branch and resolve the conflicts` };

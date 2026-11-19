@@ -53,3 +53,6 @@ desktop.ini
 
 # Documents / References
 docs
+
+# Agents' project memory, shared by every worktree through a link (tools/harness/deliver.mjs)
+.claude/agent-memory

@@ -18,7 +18,7 @@ Embeddable Java 21 library that federates MCP servers of mixed protocol versions
 
 The main session orchestrates with the `deliver-feature` skill (`/deliver-feature <task id>`, or no argument to work through the roadmap): coder → tester → (fix loop) → squash-merge to `main` → roadmap check-off with evidence → release on request. The implement–verify–merge loop runs in the delivery harness (`tools/harness/deliver.mjs`), which drives the agents headless in their own git worktree and merges only on a QA PASS for the exact PR head with green CI, after marking the feature record delivered. Shared skills: `java-standards`, `quality-gates`, `mcp-protocol`, `delivery-docs`.
 
-Guardrails: `.claude/hooks/guard.mjs` runs before every Bash, Edit and Write call (project `settings.json` for everyone, plus role rules in the coder and tester frontmatter). It blocks commits and pushes to `main`, force pushes, `--no-verify`, `NOSONAR` and Sonar exclusions; the coder cannot merge, tag or commit to `release/*`; the tester cannot change history or write outside `target/` and `docs/validation/`. The GitHub ruleset is the real enforcement; the hook catches mistakes locally.
+Guardrails: `.claude/hooks/guard.mjs` runs before every Bash, Edit and Write call (project `settings.json` for everyone, plus role rules in the coder and tester frontmatter). It blocks commits and pushes to `main`, force pushes, `--no-verify`, `NOSONAR` and Sonar exclusions; the coder cannot merge, tag or commit to `release/*`; the tester cannot change history or write outside `target/`, `docs/validation/` and its memory in `.claude/agent-memory/`. The GitHub ruleset is the real enforcement; the hook catches mistakes locally.
 
 ## Rules for every session
 

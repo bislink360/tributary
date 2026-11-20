@@ -2,12 +2,13 @@
 smd: 2
 title: "T0A-1: A stand-in older MCP server that asks the user two questions"
 summary: "A small test server that speaks the older MCP 2025-11-25 protocol and, during one tool call, asks the user two questions in a row. It is the realistic counterpart Tributary must bridge in its first feasibility check."
-status: review
+status: approved
 owners: ["@roshan"]
 tags: [feature]
 updated: 2026-11-20
 task: T0A-1
 priority: P0
+pr: "https://github.com/bislink360/tributary/pull/12"
 ---
 
 ## Scope
@@ -58,4 +59,4 @@ Nothing changes for existing users: there is no released version yet, and the te
 
 ## Delivery
 
-Not merged yet.
+Delivered on 2026-11-20 through [pull request #12](https://github.com/bislink360/tributary/pull/12), merged after QA passed on its final commit.

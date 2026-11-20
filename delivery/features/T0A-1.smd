@@ -1,0 +1,62 @@
+---
+smd: 2
+title: "T0A-1: A stand-in older MCP server that asks the user two questions"
+summary: "A small test server that speaks the older MCP 2025-11-25 protocol and, during one tool call, asks the user two questions in a row. It is the realistic counterpart Tributary must bridge in its first feasibility check."
+status: approved
+owners: ["@roshan"]
+tags: [feature]
+updated: 2026-11-20
+task: T0A-1
+priority: P0
+pr: "https://github.com/bislink360/tributary/pull/12"
+---
+
+## Scope
+
+**Roadmap task:** T0A-1 · Finish the legacy 2025-11-25 HTTP test server in `tributary-spike` with a tool that elicits twice
+
+Tributary's hardest promise is carrying a question that an older MCP server asks in the middle of a call across to a client on the new protocol, and the answer back. Before that can be tried, the team needs a dependable older server that actually asks such questions. This task provides it: an order-placing test tool that asks how many items and which shipping option, so the first feasibility check (Gate A) has a real, repeatable counterpart to bridge.
+
+### In scope
+
+- A test server, runnable on its own, that speaks the older MCP 2025-11-25 protocol over HTTP.
+- One order-placing tool that asks the user two questions, one after the other, before it answers.
+- Clear, distinct outcomes when the user declines or dismisses a question, gives an unusable answer, the client cannot ask questions, an answer comes back as an error, or no answer arrives in time.
+- Automated tests that show each of these outcomes against the official MCP Java client.
+
+:::non-goals
+- The new-protocol front that Tributary puts in front of this server, and the bridging itself: roadmap tasks T0A-3 and T0A-4.
+- Driving the server through an official new-protocol client and recording the wire trace: roadmap tasks T0A-5, T0A-7 and T0A-10.
+- Choosing or upgrading the MCP Java SDK version: roadmap task T0A-2. This task uses the version already pinned.
+- Anything a Tributary user would run: the server is a test fixture in the feasibility spike and is never published.
+:::
+
+## Capabilities {#capabilities}
+
+:progress{basis=tasks}
+
+- [x] The test server runs on its own and accepts clients of the older MCP 2025-11-25 protocol over HTTP {#T0A-1-1}
+- [x] A client sees one order-placing tool, and calling it asks the user two questions in a row before the order is confirmed {#T0A-1-2}
+- [x] Declining or dismissing either question ends the call with a clear message naming the question {#T0A-1-3}
+- [x] An unusable answer, an error in place of an answer, or no answer in time ends the call with a clear message instead of hanging {#T0A-1-4}
+- [x] A client that cannot ask the user questions gets a clear message rather than a hidden failure {#T0A-1-5}
+
+## Compatibility
+
+Nothing changes for existing users: there is no released version yet, and the test server lives in the feasibility spike, which is never published.
+
+## Technical notes
+
+:::details Technical notes
+- `tributary-spike`: `com.bislink360.tributary.spike.legacy.OrdersLegacyServer` (Jetty 12 on the loopback interface, MCP Java SDK `HttpServletStreamableServerTransportProvider` at `/mcp`, SDK pin unchanged at `2.2.0-M2`) and the package-private `PlaceOrderTool`.
+- Protocol: the SDK server negotiates `2025-11-25` with a client that asks for it (asserted by test). `tools/call place_order {item}` sends two form-mode `elicitation/create` requests in turn: `quantity` (integer 1 to 100), then `shipping` (`standard` or `express`). Success returns `Order placed: <n> x <item>, <shipping> shipping.`.
+- Every ending without an order is a `CallToolResult` with `isError: true` and a message naming the question: decline, cancel, unusable answer, a JSON-RPC error in place of the answer, no answer within the answer timeout, a client without form elicitation, a blank item. The SDK's own input-schema validation rejects a missing item before the tool runs.
+- Answer timeout: the SDK request timeout for server-to-client requests; `main` uses 2 minutes. On timeout the tool reports "no answer in time"; whether the SDK tells the client to stop waiting is not asserted here.
+- Run on its own: `./mvnw -B -q -pl tributary-spike compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt`, then `java -cp "tributary-spike/target/classes<sep>$(cat tributary-spike/target/cp.txt)" com.bislink360.tributary.spike.legacy.OrdersLegacyServer [port]` (default port 9101, `<sep>` is `;` on Windows, `:` elsewhere).
+- Tests (`OrdersLegacyServerTest`, `UnansweredQuestionTest`) drive the server over real HTTP with the SDK's 2025-11-25 sync client; no sleeps.
+- New test-only dependency: JUnit Jupiter 5.14.4 through `junit-bom` in the parent `dependencyManagement`. No public API of a published module is added or changed.
+:::
+
+## Delivery
+
+Delivered on 2026-11-20 through [pull request #12](https://github.com/bislink360/tributary/pull/12), merged after QA passed on its final commit.

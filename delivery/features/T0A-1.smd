@@ -34,11 +34,11 @@ Tributary's hardest promise is carrying a question that an older MCP server asks
 
 :progress{basis=tasks}
 
-- [ ] The test server runs on its own and accepts clients of the older MCP 2025-11-25 protocol over HTTP {#T0A-1-1}
-- [ ] A client sees one order-placing tool, and calling it asks the user two questions in a row before the order is confirmed {#T0A-1-2}
-- [ ] Declining or dismissing either question ends the call with a clear message naming the question {#T0A-1-3}
-- [ ] An unusable answer, an error in place of an answer, or no answer in time ends the call with a clear message instead of hanging {#T0A-1-4}
-- [ ] A client that cannot ask the user questions gets a clear message rather than a hidden failure {#T0A-1-5}
+- [x] The test server runs on its own and accepts clients of the older MCP 2025-11-25 protocol over HTTP {#T0A-1-1}
+- [x] A client sees one order-placing tool, and calling it asks the user two questions in a row before the order is confirmed {#T0A-1-2}
+- [x] Declining or dismissing either question ends the call with a clear message naming the question {#T0A-1-3}
+- [x] An unusable answer, an error in place of an answer, or no answer in time ends the call with a clear message instead of hanging {#T0A-1-4}
+- [x] A client that cannot ask the user questions gets a clear message rather than a hidden failure {#T0A-1-5}
 
 ## Compatibility
 
@@ -47,7 +47,13 @@ Nothing changes for existing users: there is no released version yet, and the te
 ## Technical notes
 
 :::details Technical notes
-- To be completed as the work lands.
+- `tributary-spike`: `com.bislink360.tributary.spike.legacy.OrdersLegacyServer` (Jetty 12 on the loopback interface, MCP Java SDK `HttpServletStreamableServerTransportProvider` at `/mcp`, SDK pin unchanged at `2.2.0-M2`) and the package-private `PlaceOrderTool`.
+- Protocol: the SDK server negotiates `2025-11-25` with a client that asks for it (asserted by test). `tools/call place_order {item}` sends two form-mode `elicitation/create` requests in turn: `quantity` (integer 1 to 100), then `shipping` (`standard` or `express`). Success returns `Order placed: <n> x <item>, <shipping> shipping.`.
+- Every ending without an order is a `CallToolResult` with `isError: true` and a message naming the question: decline, cancel, unusable answer, a JSON-RPC error in place of the answer, no answer within the answer timeout, a client without form elicitation, a blank item. The SDK's own input-schema validation rejects a missing item before the tool runs.
+- Answer timeout: the SDK request timeout for server-to-client requests; `main` uses 2 minutes. On timeout the SDK abandons the pending elicitation; the tool reports "no answer in time".
+- Run on its own: `./mvnw -B -q -pl tributary-spike compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt`, then `java -cp "tributary-spike/target/classes<sep>$(cat tributary-spike/target/cp.txt)" com.bislink360.tributary.spike.legacy.OrdersLegacyServer [port]` (default port 9101, `<sep>` is `;` on Windows, `:` elsewhere).
+- Tests (`OrdersLegacyServerTest`, `UnansweredQuestionTest`) drive the server over real HTTP with the SDK's 2025-11-25 sync client; no sleeps.
+- New test-only dependency: JUnit Jupiter 5.14.4 through `junit-bom` in the parent `dependencyManagement`. No public API of a published module is added or changed.
 :::
 
 ## Delivery

@@ -30,7 +30,7 @@
         <mcp-sdk.version>2.2.0-M2</mcp-sdk.version>
         <jetty.version>12.1.15</jetty.version>
         <google-java-format.version>2.0.0</google-java-format.version>
-        <junit.version>5.14.4</junit.version>
+        <junit.version>6.1.3</junit.version>
 
         <!-- SonarQube: the server URL and token come from the environment, never from this file. -->
         <sonar.projectKey>tributary</sonar.projectKey>

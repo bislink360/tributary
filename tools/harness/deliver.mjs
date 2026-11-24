@@ -35,6 +35,8 @@ const CHECK_WAIT_MS = 60 * 60 * 1000;
 const POLL_MS = Number(process.env.TRIBUTARY_HARNESS_POLL_MS ?? 5000);
 // GitHub can report the previous PR head for a while after a push: wait up to 24 polls (2 minutes).
 const HEAD_WAIT_POLLS = 24;
+// `gh pr checks --watch` can return while checks are still pending; watch again at most this often.
+const CHECK_WATCH_ROUNDS = 10;
 const REMOTE = process.env.TRIBUTARY_HARNESS_REMOTE ?? 'origin';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -301,15 +303,25 @@ function mergeGate(pr, testedSha, options) {
     }
   }
 
-  if (checksState(status.statusCheckRollup) === 'pending') {
+  // GitHub registers the checks of a fresh push with a delay and reports none meanwhile.
+  if (!options.allowNoChecks) {
+    for (let poll = 0; checksState(status.statusCheckRollup) === 'none' && poll < HEAD_WAIT_POLLS; poll++) {
+      sleep(POLL_MS);
+      status = prStatus(pr);
+    }
+  }
+  // The watch can return early, for example before every workflow has registered its checks.
+  const deadline = Date.now() + CHECK_WAIT_MS;
+  for (let round = 0; checksState(status.statusCheckRollup) === 'pending' && round < CHECK_WATCH_ROUNDS && Date.now() < deadline; round++) {
+    if (round > 0) sleep(POLL_MS);
     log('waiting for CI checks…');
-    gh(['pr', 'checks', String(pr), '--watch', '--interval', '30'], { allowFailure: true, timeout: CHECK_WAIT_MS });
+    gh(['pr', 'checks', String(pr), '--watch', '--interval', '30'], { allowFailure: true, timeout: Math.max(deadline - Date.now(), 1) });
     status = prStatus(pr);
   }
   const checks = checksState(status.statusCheckRollup);
   if (checks === 'none' && !options.allowNoChecks) return { person: `PR #${pr} has no CI checks; set up CI first or pass --allow-no-checks` };
   if (checks === 'failed') return { fix: `CI checks failed on PR #${pr}; read them with gh pr checks ${pr}` };
-  if (checks === 'pending') return { person: `CI checks on PR #${pr} did not finish within an hour` };
+  if (checks === 'pending') return { person: `CI checks on PR #${pr} were still running when the harness stopped waiting` };
 
   for (let attempt = 0; status.mergeable === 'UNKNOWN' && attempt < 6; attempt++) {
     sleep(POLL_MS);

@@ -124,6 +124,23 @@ class ModernFrontTest {
   }
 
   @Test
+  void answersAnInternalErrorWhenTheBackendIsGoneDuringACall() {
+    McpException answer;
+    try (GreetingLegacyServer backend = GreetingLegacyServer.start();
+        ModernFront front = ModernFront.start(0, backend.endpoint(), BACKEND_TIMEOUT)) {
+      var call =
+          client(front).tool(GreetingLegacyServer.TOOL_NAME).arguments(Map.of("name", "Ada"));
+      client(front).listTools().list();
+      backend.close();
+
+      answer = assertThrows(McpException.class, call::call);
+    }
+
+    assertEquals(-32603, answer.error().code());
+    assertEquals("Internal error", answer.error().message());
+  }
+
+  @Test
   void refusesToStartWhenTheBackendCannotBeReached() {
     URI nobodyListening;
     try (GreetingLegacyServer stopped = GreetingLegacyServer.start()) {

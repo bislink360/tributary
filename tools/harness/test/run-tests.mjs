@@ -17,6 +17,7 @@ const coder = (sha, extra = {}) => ({ status: 'handoff', pr_number: 7, branch: '
 const tester = (verdict, sha, report = 'report') => ({ verdict, pr_number: 7, head_sha: sha, findings: verdict === 'FAIL' ? ['F1 broken'] : [], report, evidence_file: null, error: null });
 const success = [{ __typename: 'CheckRun', name: 'build', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const failure = [{ __typename: 'CheckRun', name: 'build', status: 'COMPLETED', conclusion: 'FAILURE' }];
+const running = [{ __typename: 'CheckRun', name: 'build', status: 'IN_PROGRESS', conclusion: null }];
 const pr = (sha, checks = success, extra = {}) => ({ state: 'OPEN', isDraft: false, headRefOid: sha, headRefName: 'feat/T-X-1-demo', mergeable: 'MERGEABLE', statusCheckRollup: checks, url: 'https://github.com/bislink360/tributary/pull/7', ...extra });
 
 const cases = [
@@ -83,6 +84,27 @@ const cases = [
   {
     name: 'no CI checks: stops for a person instead of merging',
     scenario: { coder: [coder('a1')], tester: [tester('PASS', 'a1')], gh: { pr_view: [pr('a1', [])] } },
+    exit: 3,
+    check: (calls) => expect(calls.some((c) => c.tool === 'gh' && c.args[1] === 'merge'), false),
+  },
+  {
+    name: 'checks not registered yet after a push: waits for them instead of stopping, then merges',
+    scenario: { coder: [coder('a1')], tester: [tester('PASS', 'a1')], gh: { pr_view: [pr('a1', []), pr('a1', []), pr('a1')] } },
+    exit: 0,
+    check: (calls) => expect(calls.find((c) => c.tool === 'gh' && c.args[1] === 'merge').args.join(' '), 'pr merge 7 --squash --match-head-commit a1'),
+  },
+  {
+    name: 'checks still running when the watch returns: watches again, then merges',
+    scenario: { coder: [coder('a1')], tester: [tester('PASS', 'a1')], gh: { pr_view: [pr('a1', running), pr('a1', running), pr('a1')] } },
+    exit: 0,
+    check: (calls) => {
+      expect(calls.filter((c) => c.tool === 'gh' && c.args[1] === 'checks').length, 2);
+      expect(calls.some((c) => c.tool === 'gh' && c.args[1] === 'merge'), true);
+    },
+  },
+  {
+    name: 'checks never finish: stops for a person without merging',
+    scenario: { coder: [coder('a1')], tester: [tester('PASS', 'a1')], gh: { pr_view: [pr('a1', running)] } },
     exit: 3,
     check: (calls) => expect(calls.some((c) => c.tool === 'gh' && c.args[1] === 'merge'), false),
   },

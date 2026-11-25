@@ -9,6 +9,7 @@ What Tributary is building and shipping, in plain terms. Each feature record say
 | Feature | Status | Progress | Release |
 | --- | --- | --- | --- |
 | [T0A-1: A stand-in older MCP server that asks the user two questions](features/T0A-1.md) | Delivered | ▰▰▰▰▰▰▰▰▰▰ 100% | Not yet released |
+| [T0A-3: A new-protocol front door for the feasibility check](features/T0A-3.md) | In progress | ▱▱▱▱▱▱▱▱▱▱ 0% | Not yet released |
 | [T0A-11: Automatic quality checks on every change](features/T0A-11.md) | Delivered | ▰▰▰▰▰▰▰▰▰▰ 100% | Not yet released |
 
 ## Releases

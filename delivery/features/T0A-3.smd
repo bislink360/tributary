@@ -2,7 +2,7 @@
 smd: 2
 title: "T0A-3: A new-protocol front door for the feasibility check"
 summary: "A trial front door that speaks the new MCP 2026-07-28 protocol and passes tool listings and tool calls through to an older MCP server behind it. It is the client-facing half of Tributary's first feasibility check."
-status: draft
+status: review
 owners: ["@roshan"]
 tags: [feature]
 updated: 2026-11-25

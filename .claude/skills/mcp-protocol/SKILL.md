@@ -29,7 +29,7 @@ Cite the spec page and section, or the schema type, for every protocol behavior 
 ## Java SDK
 
 - Repository: https://github.com/modelcontextprotocol/java-sdk — read the release notes and source for the exact pinned version, not `main`.
-- The pin is `mcp-sdk.version` in the parent `pom.xml` (currently `2.2.0-M2`, a milestone). The scope doc verified the status of `2.2.0-M1` only: a modern stateless 2026-07-28 server that passes the required conformance scenarios, no modern client, no Tasks, no SEP-2243 standard headers. What M2 adds is unverified until roadmap task T0A-2 records it; don't assume either way.
+- The pin is `mcp-sdk.version` in the parent `pom.xml` (currently `2.2.0`, GA). Roadmap task T0A-2 recorded what it provides, read in the source at the tag: a modern 2026-07-28 server and a modern client (both preview APIs that may change in minor releases until 3.0), SEP-2243 standard header validation on the server, and no Tasks. It pulls `reactor-core` 3.9.0-RC1. The legacy client's session-wide `requestTimeout` (20 s by default) also covers the time a user takes to answer an elicitation, so a parked call needs it raised. T0A-9 records the final pin decision.
 - Server conformance is not end-to-end interoperability. Only a run through real clients and servers shows the latter.
 
 ## Official clients and servers for wire tests

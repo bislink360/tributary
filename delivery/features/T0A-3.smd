@@ -1,0 +1,69 @@
+---
+smd: 2
+title: "T0A-3: A new-protocol front door for the feasibility check"
+summary: "A trial front door that speaks the new MCP 2026-07-28 protocol and passes tool listings and tool calls through to an older MCP server behind it. It is the client-facing half of Tributary's first feasibility check."
+status: approved
+owners: ["@roshan"]
+tags: [feature]
+updated: 2026-11-25
+task: T0A-3
+priority: P0
+pr: "https://github.com/bislink360/tributary/pull/18"
+---
+
+## Scope
+
+**Roadmap task:** T0A-3 · Build the spike front for 2026-07-28 (Streamable HTTP, `server/discover`), trying the SDK's modern server preview first
+
+Tributary's promise is that an application on the new MCP protocol can use older MCP servers without knowing they are old. This task builds the first, trial version of the door such an application knocks on: it speaks the new protocol to the application and the older protocol to the server behind it. It also answers an open question for the team: whether the ready-made new-protocol server in the official MCP Java SDK is good enough to build that door on, which feeds the decision recorded in roadmap task T0A-9.
+
+### In scope
+
+- A trial front, runnable on its own, that speaks the new MCP 2026-07-28 protocol over HTTP and sits in front of one older MCP server.
+- A new-protocol application can ask the front what it supports, see the older server's tools, and call them.
+- A clear refusal for an application that still uses the older connection handshake, and a clear message when the older server behind the front cannot be reached at start-up.
+- A recorded finding on whether the official MCP Java SDK's ready-made new-protocol server was enough for this step.
+- Automated tests that show each of these against the official MCP Java client and on the raw HTTP exchange.
+
+:::non-goals
+- Carrying a question the older server asks in the middle of a call across to the application, and the answer back: roadmap task T0A-4. Until then a tool that needs to ask the user reports through the front that it cannot.
+- Driving the front with an official TypeScript or Python client: roadmap task T0A-5.
+- Showing that concurrent calls are never confused with one another: roadmap task T0A-6.
+- Breaking network connections on purpose and classifying what happens to a call in flight: roadmap task T0A-7.
+- Checking error codes and wording against the specification and the official conformance suite: roadmap task T0A-8.
+- The decision on which front Tributary builds on, and the final SDK version: roadmap task T0A-9. This task supplies evidence for it and decides nothing.
+- Anything a Tributary user would run: the front lives in the feasibility spike and is never published.
+:::
+
+## Capabilities {#capabilities}
+
+:progress{basis=tasks}
+
+- [x] A new-protocol application connects to the front over HTTP without a connection handshake and learns what the front supports {#T0A-3-1}
+- [x] The application sees the tools of the older server behind the front {#T0A-3-2}
+- [x] A tool call made through the front reaches the older server, and its answer comes back to the application {#T0A-3-3}
+- [x] An application that still uses the older connection handshake is told which protocol version the front speaks {#T0A-3-4}
+- [x] The front refuses to start, with a clear message, when the older server behind it cannot be reached {#T0A-3-5}
+- [x] The team has a recorded finding on whether the official MCP Java SDK's ready-made new-protocol server was enough for this step {#T0A-3-6}
+
+## Compatibility
+
+Nothing changes for existing users: there is no released version yet, and the front lives in the feasibility spike, which is never published.
+
+## Technical notes
+
+:::details Technical notes
+- `tributary-spike`: `com.bislink360.tributary.spike.front.ModernFront` (Jetty 12 on the loopback interface, MCP Java SDK 2.2.0 modern server preview: `McpServer` with `ToolsFeature`, served by `HttpServletMcpTransport` at `/mcp`), with the package-private `LegacyBackend` (SDK legacy client, one session for the front's life) and `BackendTools` (the backend's tools, read once at start). `LoopbackHttpListener` is the Jetty set-up now shared with the legacy orders server, whose behavior is unchanged.
+- Protocol, each asserted by a test: `server/discover` answers on the first request with `supportedVersions: ["2026-07-28"]`, the `tools` capability and `serverInfo` in `_meta`, and no `Mcp-Session-Id`. `tools/list` returns the backend's tools with description and input schema. `tools/call` is passed to the backend and its result returned. An unknown tool and a cursor the front never issued are answered with `-32602`. A legacy `initialize` gets HTTP 400 and an error naming `2026-07-28`. An `Mcp-Method` header that disagrees with the body gets HTTP 400 and `-32020`. A request with an `Origin` header gets HTTP 403.
+- Not carried yet: the front's backend session declares no elicitation capability, so `place_order` answers through the front with its own "this client does not support form elicitation" tool error. T0A-4 replaces that with `input_required`.
+- Not classified yet: when a request to the backend ends without a response, the exception reaches the SDK, which answers `-32603 Internal error` (asserted by a test for a backend that has stopped; a timeout takes the same path in the code and is not tested). What the client is told about a call whose outcome is unknown belongs to T0A-4 and T0A-7.
+- Finding for T0A-9 (evidence only, no decision): the SDK's modern server preview was enough for this step. Discover, tool listing, tool calls, standard-header validation, the legacy-handshake refusal and the Origin check all come from the SDK; the front adds no HTTP or JSON-RPC code of its own. Read in the SDK source and not yet exercised here: a synchronous tool handler runs on the servlet container thread, is never interrupted, and learns of a client disconnect only when a write fails, which T0A-4 must weigh when it parks a call. The modern API is still a preview that may change in minor releases.
+- Not verified here: the official conformance suite (T0A-8), an official TypeScript or Python client (T0A-5), concurrent calls on the shared backend session (T0A-6).
+- Run on its own: `./mvnw -B -q -pl tributary-spike compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt`, start the legacy orders server as in T0A-1 (port 9101), then `java -cp "tributary-spike/target/classes<sep>$(cat tributary-spike/target/cp.txt)" com.bislink360.tributary.spike.front.ModernFront [port] [backend-url]` (defaults: port 9100, backend `http://127.0.0.1:9101/mcp`; `<sep>` is `;` on Windows, `:` elsewhere).
+- Tests: `ModernFrontTest` drives the front with the SDK's 2026-07-28 client against real legacy servers over HTTP; `ModernFrontWireTest` sends hand-written HTTP requests. No sleeps.
+- No new dependency. No public API of a published module is added or changed.
+:::
+
+## Delivery
+
+Delivered on 2026-11-25 through [pull request #18](https://github.com/bislink360/tributary/pull/18), merged after QA passed on its final commit.

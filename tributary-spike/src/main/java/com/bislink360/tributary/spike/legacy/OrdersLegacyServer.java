@@ -1,19 +1,14 @@
 package com.bislink360.tributary.spike.legacy;
 
+import com.bislink360.tributary.spike.http.LoopbackHttpListener;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
-import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
-import org.eclipse.jetty.ee10.servlet.ServletHolder;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,11 +32,11 @@ public final class OrdersLegacyServer implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(OrdersLegacyServer.class);
 
-  private final Server jetty;
+  private final LoopbackHttpListener listener;
   private final McpSyncServer mcp;
 
-  private OrdersLegacyServer(Server jetty, McpSyncServer mcp) {
-    this.jetty = jetty;
+  private OrdersLegacyServer(LoopbackHttpListener listener, McpSyncServer mcp) {
+    this.listener = listener;
     this.mcp = mcp;
   }
 
@@ -57,9 +52,7 @@ public final class OrdersLegacyServer implements AutoCloseable {
    * @throws IllegalStateException if the HTTP listener cannot start
    */
   public static OrdersLegacyServer start(int port, Duration answerTimeout) {
-    if (port < 0 || port > 65_535) {
-      throw new IllegalArgumentException("port must be between 0 and 65535, got " + port);
-    }
+    LoopbackHttpListener.requireValidPort(port);
     Objects.requireNonNull(answerTimeout, "answerTimeout");
     if (answerTimeout.isNegative() || answerTimeout.isZero()) {
       throw new IllegalArgumentException("answerTimeout must be positive, got " + answerTimeout);
@@ -80,19 +73,12 @@ public final class OrdersLegacyServer implements AutoCloseable {
             .tools(PlaceOrderTool.specification())
             .build();
 
-    Server jetty = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), port));
-    var servlet = new ServletHolder(transport);
-    servlet.setAsyncSupported(true);
-    var context = new ServletContextHandler();
-    context.addServlet(servlet, "/*");
-    jetty.setHandler(context);
     try {
-      jetty.start();
-    } catch (Exception e) {
+      return new OrdersLegacyServer(LoopbackHttpListener.start(port, transport, MCP_PATH), mcp);
+    } catch (IllegalStateException e) {
       mcp.close();
-      throw new IllegalStateException("Could not start the HTTP listener on port " + port, e);
+      throw e;
     }
-    return new OrdersLegacyServer(jetty, mcp);
   }
 
   /**
@@ -101,9 +87,7 @@ public final class OrdersLegacyServer implements AutoCloseable {
    * @return the URI clients connect to
    */
   public URI endpoint() {
-    var connector = (ServerConnector) jetty.getConnectors()[0];
-    String host = InetAddress.getLoopbackAddress().getHostAddress();
-    return URI.create("http://" + host + ":" + connector.getLocalPort() + MCP_PATH);
+    return listener.endpoint();
   }
 
   /**
@@ -115,11 +99,7 @@ public final class OrdersLegacyServer implements AutoCloseable {
   @Override
   public void close() {
     mcp.closeGracefully();
-    try {
-      jetty.stop();
-    } catch (Exception e) {
-      throw new IllegalStateException("Could not stop the HTTP listener", e);
-    }
+    listener.stop();
   }
 
   /**
